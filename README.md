@@ -39,11 +39,11 @@ Home Assistant custom component for control TP-Link Easy Smart switches over LAN
 
 ### Manual
 
-Copy `tplink_easy_smart` folder from [latest release](https://github.com/vmakeev/hass_tplink_easy_smart/releases/latest) to `custom_components` folder in your Home Assistant config folder and restart Home Assistant. The final path to folder should look like this: `<home-assistant-config-folder>/custom_components/tplink_easy_smart`.
+Copy `tplink_easy_smart` folder from [latest release](https://github.com/jcalvi/hass_tplink_easy_smart/releases/latest) to `custom_components` folder in your Home Assistant config folder and restart Home Assistant. The final path to folder should look like this: `<home-assistant-config-folder>/custom_components/tplink_easy_smart`.
 
 ### HACS
 
-[Add a custom repository](https://hacs.xyz/docs/faq/custom_repositories/) `https://github.com/vmakeev/hass_tplink_easy_smart` with `Integration` category to [HACS](https://hacs.xyz/) and restart Home Assistant.
+[Add a custom repository](https://hacs.xyz/docs/faq/custom_repositories/) `https://github.com/jcalvi/hass_tplink_easy_smart` with `Integration` category to [HACS](https://hacs.xyz/) and restart Home Assistant.
 
 ## Configuration
 
