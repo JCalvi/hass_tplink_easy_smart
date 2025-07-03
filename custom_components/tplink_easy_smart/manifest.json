@@ -5,7 +5,7 @@
   "documentation": "https://github.com/jcalvi/tplink_easy_smart",
   "issue_tracker": "https://github.com/jcalvi/tplink_easy_smart/issues",
   "codeowners": [
-    "@vmakeev"
+    "@vmakeev",
     "@jcalvi"
   ],
   "iot_class": "local_polling",
