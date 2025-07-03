@@ -4,7 +4,6 @@ Home Assistant custom component for control TP-Link Easy Smart switches over LAN
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/jcalvi/hass_tplink_easy_smart)](https://github.com/jcalvi/hass_tplink_easy_smart/blob/master/LICENSE.md)
-![Active installations](https://raw.githubusercontent.com/jcalvi/custom_badges_updater/main/tplink_easy_smart.svg)
 
 [![Release](https://img.shields.io/github/v/release/JCalvi/hass_tplink_easy_smart)](https://github.com/jcalvi/hass_tplink_easy_smart/releases/latest)
 [![ReleaseDate](https://img.shields.io/github/release-date/JCalvi/hass_tplink_easy_smart)](https://github.com/JCalvi/hass_tplink_easy_smart/releases/latest)
