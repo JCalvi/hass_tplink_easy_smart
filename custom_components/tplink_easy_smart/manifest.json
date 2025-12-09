@@ -2,8 +2,8 @@
   "domain": "tplink_easy_smart",
   "name": "TP-Link Easy Smart",
   "integration_type": "device",
-  "documentation": "https://github.com/jcalvi/tplink_easy_smart",
-  "issue_tracker": "https://github.com/jcalvi/tplink_easy_smart/issues",
+  "documentation": "https://github.com/jcalvi/hass_tplink_easy_smart",
+  "issue_tracker": "https://github.com/jcalvi/hass_tplink_easy_smart/issues",
   "codeowners": [
     "@vmakeev",
     "@jcalvi"
@@ -12,6 +12,6 @@
   "requirements": [
     "json5==0.9.10"
   ],
-  "version": "0.3.2",
+  "version": "0.3.2.1",
   "config_flow": true
 }
