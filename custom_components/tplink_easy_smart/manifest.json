@@ -12,6 +12,6 @@
   "requirements": [
     "json5==0.12.1"
   ],
-  "version": "0.3.2.1",
+  "version": "0.3.3",
   "config_flow": true
 }
