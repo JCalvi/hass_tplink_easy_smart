@@ -246,7 +246,7 @@ class TpLinkWebApi:
             response = await self._session.get(
                 url=self._get_url(path),
                 allow_redirects=True,
-                verify_ssl=self._verify_ssl,
+                ssl=False if not self._verify_ssl else None,
                 timeout=TIMEOUT,
             )
             _LOGGER.debug("GET %s performed, status: %s", path, response.status)
@@ -272,7 +272,7 @@ class TpLinkWebApi:
             response = await self._session.post(
                 url=self._get_url(path),
                 data=data,
-                verify_ssl=self._verify_ssl,
+                ssl=False if not self._verify_ssl else None,
                 timeout=TIMEOUT,
             )
             _LOGGER.debug("POST to %s performed, status: %s", path, response.status)
