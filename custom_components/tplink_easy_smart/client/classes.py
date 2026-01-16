@@ -12,12 +12,12 @@ MAC_ADDR: TypeAlias = str
 # ---------------------------
 @dataclass()
 class TpLinkSystemInfo:
-    name: str | None = (None,)
-    mac: str | None = (None,)
-    ip: str | None = (None,)
-    netmask: str | None = (None,)
-    gateway: str | None = (None,)
-    firmware: str | None = (None,)
+    name: str | None = None
+    mac: str | None = None
+    ip: str | None = None
+    netmask: str | None = None
+    gateway: str | None = None
+    firmware: str | None = None
     hardware: str | None = None
 
 
