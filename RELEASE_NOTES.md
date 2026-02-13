@@ -7,4 +7,4 @@
 ## Technical Details
 Home Assistant requires integration logos to be exactly 256×256 pixels. The previous logo was 512×512 which caused it to be silently ignored by the Home Assistant UI.
 
-**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/0.3.3...0.3.5
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.3.4...v0.3.5
