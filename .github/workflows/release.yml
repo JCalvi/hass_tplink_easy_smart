@@ -1,0 +1,61 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'custom_components/tplink_easy_smart/manifest.json'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from manifest
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' custom_components/tplink_easy_smart/manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          git fetch --tags
+          if git rev-parse "${{ steps.get_version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create zip file
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          zip -r tplink_easy_smart.zip custom_components/
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: Release ${{ steps.get_version.outputs.tag }}
+          body: |
+            Release version ${{ steps.get_version.outputs.version }}
+            
+            ## Installation
+            1. Download `tplink_easy_smart.zip`
+            2. Extract to your Home Assistant config directory
+            3. Restart Home Assistant
+          files: |
+            tplink_easy_smart.zip
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
