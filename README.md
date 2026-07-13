@@ -88,3 +88,8 @@ Advanced settings include:
 
 * Set the PoE power limit ([read more](docs/services.md#set-the-poe-power-limit))
 * Set PoE settings for a specific port ([read more](docs/services.md#set-poe-settings-for-a-specific-port))
+
+
+### Clear port statistics
+
+When port statistics are supported, the integration creates a device-level **Clear port statistics** button. Pressing it clears the Tx/Rx good and bad packet counters for all ports and refreshes the displayed values immediately.
