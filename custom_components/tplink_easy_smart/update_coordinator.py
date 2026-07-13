@@ -227,6 +227,12 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
             self._port_states[index].enabled = enabled
             self.async_update_listeners()
 
+    async def async_clear_port_statistics(self) -> None:
+        """Clear all port packet counters and refresh their values."""
+        await self._api.clear_port_statistics()
+        await self._update_port_statistics()
+        self.async_update_listeners()
+
     async def async_set_poe_limit(self, limit: float) -> None:
         """Set general PoE limit."""
         await self._api.set_poe_limit(limit)
