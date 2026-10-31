@@ -76,51 +76,67 @@ async def async_setup_entry(
     """Set up sensors for TP-Link component."""
     coordinator: TpLinkDataUpdateCoordinator = get_coordinator(hass, config_entry)
 
-    sensors = []
+    known_ports: set[int] = set()
+    known_poe_ports: set[int] = set()
 
-    if config_entry.options.get(OPT_PORT_STATE_SWITCHES, DEFAULT_PORT_STATE_SWITCHES):
-        for port_number in range(1, coordinator.ports_count + 1):
-            sensors.append(
-                TpLinkPortStateSwitch(
-                    coordinator,
-                    TpLinkPortSwitchEntityDescription(
-                        key=f"port_{port_number}_enabled",
-                        icon="mdi:ethernet",
-                        port_number=port_number,
-                        device_name=coordinator.get_switch_info().name,
-                        function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(
-                            port_number
+    @callback
+    def add_new_entities() -> None:
+        """Add ports discovered after a failed probe or temporary read failure."""
+        sensors = []
+
+        if config_entry.options.get(OPT_PORT_STATE_SWITCHES, DEFAULT_PORT_STATE_SWITCHES):
+            for port_number in range(1, coordinator.ports_count + 1):
+                if port_number in known_ports:
+                    continue
+                known_ports.add(port_number)
+                sensors.append(
+                    TpLinkPortStateSwitch(
+                        coordinator,
+                        TpLinkPortSwitchEntityDescription(
+                            key=f"port_{port_number}_enabled",
+                            icon="mdi:ethernet",
+                            port_number=port_number,
+                            device_name=coordinator.get_switch_info().name,
+                            function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(
+                                port_number
+                            ),
+                            function_name=_FUNCTION_DISPLAYED_NAME_PORT_STATE_FORMAT.format(
+                                port_number
+                            ),
                         ),
-                        function_name=_FUNCTION_DISPLAYED_NAME_PORT_STATE_FORMAT.format(
-                            port_number
-                        ),
-                    ),
+                    )
                 )
-            )
 
-    if config_entry.options.get(
-        OPT_POE_STATE_SWITCHES, DEFAULT_POE_STATE_SWITCHES
-    ) and await coordinator.is_feature_available(FEATURE_POE):
-        for port_number in range(1, coordinator.ports_poe_count + 1):
-            sensors.append(
-                TpLinkPortPoeStateSwitch(
-                    coordinator,
-                    TpLinkPortSwitchEntityDescription(
-                        key=f"port_{port_number}_poe_enabled",
-                        icon="mdi:lightning-bolt-outline",
-                        port_number=port_number,
-                        device_name=coordinator.get_switch_info().name,
-                        function_uid=_FUNCTION_UID_PORT_POE_STATE_FORMAT.format(
-                            port_number
+        if config_entry.options.get(
+            OPT_POE_STATE_SWITCHES, DEFAULT_POE_STATE_SWITCHES
+        ) and coordinator.is_feature_available_cached(FEATURE_POE):
+            for port_number in range(1, coordinator.ports_poe_count + 1):
+                if port_number in known_poe_ports:
+                    continue
+                known_poe_ports.add(port_number)
+                sensors.append(
+                    TpLinkPortPoeStateSwitch(
+                        coordinator,
+                        TpLinkPortSwitchEntityDescription(
+                            key=f"port_{port_number}_poe_enabled",
+                            icon="mdi:lightning-bolt-outline",
+                            port_number=port_number,
+                            device_name=coordinator.get_switch_info().name,
+                            function_uid=_FUNCTION_UID_PORT_POE_STATE_FORMAT.format(
+                                port_number
+                            ),
+                            function_name=_FUNCTION_DISPLAYED_NAME_PORT_POE_STATE_FORMAT.format(
+                                port_number
+                            ),
                         ),
-                        function_name=_FUNCTION_DISPLAYED_NAME_PORT_POE_STATE_FORMAT.format(
-                            port_number
-                        ),
-                    ),
+                    )
                 )
-            )
 
-    async_add_entities(sensors)
+        if sensors:
+            async_add_entities(sensors)
+
+    add_new_entities()
+    config_entry.async_on_unload(coordinator.async_add_listener(add_new_entities))
 
 
 # ---------------------------

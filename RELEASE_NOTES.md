@@ -1,3 +1,18 @@
+## 0.3.9
+
+- Failed initial port reads now fail setup and allow Home Assistant to retry, instead of completing setup with missing port entities.
+- Empty JavaScript arrays are parsed correctly; invalid array syntax produces a controlled parsing error.
+- Port-state and PoE responses are validated before indexing their arrays, preventing incomplete snapshots from causing indexing errors.
+- Disconnected feature probes remain unknown and are retried after a 60-second cooldown on a subsequent poll, rather than being permanently cached as unsupported. Entities for recovered ports, PoE and statistics are added automatically without duplicates.
+- Failed or cancelled first refreshes close the API session and remove the failed coordinator before setup retries. Disconnect also resets API initialization state.
+- Service MAC-address lookup is case-insensitive and tolerates missing device information.
+- Added TL-SG108PE V5.0 to the confirmed models table. @JCalvi confirmed operation and Clear port statistics on firmware 1.0.0 Build 20230218 Rel.51358.
+- Added a dependency-free regression suite: `python -m unittest discover -s tests -v`.
+
+Validation: 10 focused source-level regression tests, Python compilation and whitespace checks. Tests execute production definitions in isolated namespaces; a full Home Assistant runtime and additional physical-switch testing were not available.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.3.8...v0.3.9
+
 ## 0.3.8
 
 - Fixed failed integration unloads decrementing the active service count and potentially removing services still in use. Service cleanup now runs only after all platforms unload successfully.

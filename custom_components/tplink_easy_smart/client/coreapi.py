@@ -29,7 +29,7 @@ AUTH_SESSION_TIMEOUT: Final = "auth_session_timeout"
 
 _SCRIPT_REGEX = r".*<script>(.*)<\/script>"
 _VARIABLES_REGEX = r".*var\s+(?P<variable>[a-zA-Z0-9_]+)\s*=\s*(?P<value>[^;]+);\s*"
-_ARRAY_VALUES_REGEX = r"\s*new\s*Array\s*\((?P<items>[^\)]+)\)"
+_ARRAY_VALUES_REGEX = r"\s*new\s*Array\s*\((?P<items>[^\)]*)\)"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,7 +138,9 @@ def _get_variables(page: str) -> dict[str, str]:
 # ---------------------------
 def _to_list(array_data: str) -> Iterable[str]:
     match = re.match(_ARRAY_VALUES_REGEX, array_data)
-    array_items = match.group("items")
+    if match is None:
+        raise ValueError("Invalid JavaScript array value")
+    array_items = match.group("items").strip()
     if array_items:
         for item in array_items.split(","):
             yield item.strip(' ,\r\n\t"')
@@ -469,3 +471,4 @@ class TpLinkWebApi:
         if self._session is not None:
             await self._session.close()
             self._session = None
+        self._is_initialized = False

@@ -32,6 +32,7 @@ Home Assistant custom component for control TP-Link Easy Smart switches over LAN
 | [TL-SG1016PE](https://www.tp-link.com/en/business-networking/poe-switch/tl-sg1016pe/)    |   V1, V3  |    Yes    | All features are available                  |
 | [TL-SG105E](https://www.tp-link.com/en/business-networking/easy-smart-switch/tl-sg105e/) |     V5    |    Yes    | PoE is not supported by device              |
 | [TL-SG108E](https://www.tp-link.com/en/business-networking/easy-smart-switch/tl-sg108e/) |     V6    |    Yes    | Network information & Port status supported |
+| [TL-SG108PE](https://www.tp-link.com/en/business-networking/easy-smart-switch/tl-sg108pe/) | V5.0 | Yes | User-confirmed operation; Clear port statistics tested; firmware 1.0.0 Build 20230218 Rel.51358 |
 | Other Easy Smart switches with web-based user interface                                  | --------- |    No     | Will most likely work                   
 
 ## Installation
@@ -94,7 +95,7 @@ Advanced settings include:
 
 When port statistics are supported, the integration creates a device-level **Clear port statistics** button. Pressing it clears the Tx/Rx good and bad packet counters for all ports and refreshes the displayed values immediately.
 
-Clearing statistics has been tested on TL-SG105E, TL-SG108E and TL-SG108PE by [@JCalvi](https://github.com/JCalvi), and on TL-SG116E V2.20 by [@bakernigel](https://github.com/bakernigel). Hardware revisions and firmware versions for the first three models were not recorded.
+Clearing statistics has been tested on TL-SG105E, TL-SG108E and TL-SG108PE by [@JCalvi](https://github.com/JCalvi), and on TL-SG116E V2.20 by [@bakernigel](https://github.com/bakernigel). The TL-SG108PE test used hardware V5.0 and firmware 1.0.0 Build 20230218 Rel.51358. Hardware revisions and firmware versions for the TL-SG105E and TL-SG108E tests were not recorded.
 
 ## Credits
 

@@ -106,7 +106,8 @@ def _find_coordinator(
         coordinator = item.get(DATA_KEY_COORDINATOR)
         if not coordinator or not isinstance(coordinator, TpLinkDataUpdateCoordinator):
             continue
-        if coordinator.get_switch_info().mac == device_mac:
+        info = coordinator.get_switch_info()
+        if info and info.mac and info.mac.casefold() == device_mac.casefold():
             return coordinator
     return None
 

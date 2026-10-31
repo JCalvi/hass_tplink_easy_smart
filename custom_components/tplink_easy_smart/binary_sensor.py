@@ -79,47 +79,63 @@ async def async_setup_entry(
     """Set up sensors for TP-Link component."""
     coordinator: TpLinkDataUpdateCoordinator = get_coordinator(hass, config_entry)
 
-    sensors = []
+    known_ports: set[int] = set()
+    known_poe_ports: set[int] = set()
 
-    for port_number in range(1, coordinator.ports_count + 1):
-        sensors.append(
-            TpLinkPortStateBinarySensor(
-                coordinator,
-                TpLinkPortBinarySensorEntityDescription(
-                    key=f"port_{port_number}_info",
-                    icon="mdi:ethernet",
-                    device_class=BinarySensorDeviceClass.CONNECTIVITY,
-                    port_number=port_number,
-                    device_name=coordinator.get_switch_info().name,
-                    function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(port_number),
-                    function_name=_FUNCTION_DISPLAYED_NAME_PORT_STATE_FORMAT.format(
-                        port_number
+    @callback
+    def add_new_entities() -> None:
+        """Add ports discovered after a failed probe or temporary read failure."""
+        sensors = []
+
+        for port_number in range(1, coordinator.ports_count + 1):
+            if port_number in known_ports:
+                continue
+            known_ports.add(port_number)
+            sensors.append(
+                TpLinkPortStateBinarySensor(
+                    coordinator,
+                    TpLinkPortBinarySensorEntityDescription(
+                        key=f"port_{port_number}_info",
+                        icon="mdi:ethernet",
+                        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+                        port_number=port_number,
+                        device_name=coordinator.get_switch_info().name,
+                        function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(port_number),
+                        function_name=_FUNCTION_DISPLAYED_NAME_PORT_STATE_FORMAT.format(
+                            port_number
+                        ),
                     ),
-                ),
+                )
             )
-        )
 
-    for port_number in range(1, coordinator.ports_poe_count + 1):
-        sensors.append(
-            TpLinkPortPoeStateBinarySensor(
-                coordinator,
-                TpLinkPortBinarySensorEntityDescription(
-                    key=f"port_{port_number}_poe_info",
-                    icon="mdi:lightning-bolt-outline",
-                    device_class=BinarySensorDeviceClass.POWER,
-                    port_number=port_number,
-                    device_name=coordinator.get_switch_info().name,
-                    function_uid=_FUNCTION_UID_PORT_POE_STATE_FORMAT.format(
-                        port_number
+        for port_number in range(1, coordinator.ports_poe_count + 1):
+            if port_number in known_poe_ports:
+                continue
+            known_poe_ports.add(port_number)
+            sensors.append(
+                TpLinkPortPoeStateBinarySensor(
+                    coordinator,
+                    TpLinkPortBinarySensorEntityDescription(
+                        key=f"port_{port_number}_poe_info",
+                        icon="mdi:lightning-bolt-outline",
+                        device_class=BinarySensorDeviceClass.POWER,
+                        port_number=port_number,
+                        device_name=coordinator.get_switch_info().name,
+                        function_uid=_FUNCTION_UID_PORT_POE_STATE_FORMAT.format(
+                            port_number
+                        ),
+                        function_name=_FUNCTION_DISPLAYED_NAME_PORT_POE_STATE_FORMAT.format(
+                            port_number
+                        ),
                     ),
-                    function_name=_FUNCTION_DISPLAYED_NAME_PORT_POE_STATE_FORMAT.format(
-                        port_number
-                    ),
-                ),
+                )
             )
-        )
 
-    async_add_entities(sensors)
+        if sensors:
+            async_add_entities(sensors)
+
+    add_new_entities()
+    config_entry.async_on_unload(coordinator.async_add_listener(add_new_entities))
 
 
 # ---------------------------

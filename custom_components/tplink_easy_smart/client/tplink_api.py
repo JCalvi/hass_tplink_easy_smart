@@ -1,6 +1,7 @@
 """TP-Link api."""
 
 import logging
+from time import monotonic
 from typing import Tuple
 
 from .classes import (
@@ -81,15 +82,20 @@ class TpLinkApi:
         """Initialize."""
         self._core_api = TpLinkWebApi(host, port, use_ssl, user, password, verify_ssl)
         self._is_features_updated = False
+        self._features_retry_at = 0.0
         self._features = TpLinkFeaturesDetector(self._core_api)
         _LOGGER.debug("New instance of TpLinkApi created")
 
     async def _ensure_features_updated(self):
-        if not self._is_features_updated:
+        if not self._is_features_updated and monotonic() >= self._features_retry_at:
             _LOGGER.debug("Updating available features")
-            await self._features.update()
-            self._is_features_updated = True
+            self._is_features_updated = await self._features.update()
+            self._features_retry_at = monotonic() + 60
             _LOGGER.debug("Available features updated")
+
+    def is_feature_available_cached(self, feature: str) -> bool:
+        """Return the last detected capability without network access."""
+        return self._features.is_available(feature)
 
     async def is_feature_available(self, feature: str) -> bool:
         """Return true if specified feature is known and available."""
@@ -158,6 +164,16 @@ class TpLinkApi:
         speeds_actual = all_info.get("spd_act")
         fc_config_flags = all_info.get("fc_cfg")
         fc_actual_flags = all_info.get("fc_act")
+
+        arrays = (
+            enabled_flags, speeds_config, speeds_actual,
+            fc_config_flags, fc_actual_flags,
+        )
+        if any(
+            not isinstance(values, list) or len(values) < max_port_num
+            for values in arrays
+        ):
+            raise ValueError("Incomplete port-state response")
 
         for number in range(1, max_port_num + 1):
             state = PortState(
@@ -254,6 +270,16 @@ class TpLinkApi:
         voltages = port_config.get("voltage")
         pdclass_flags = port_config.get("pdclass")
         powerstatus_flags = port_config.get("powerstatus")
+
+        arrays = (
+            state_flags, priority_flags, powerlimit_flags, powers,
+            currents, voltages, pdclass_flags, powerstatus_flags,
+        )
+        if any(
+            not isinstance(values, list) or len(values) < max_port_num
+            for values in arrays
+        ):
+            raise ValueError("Incomplete PoE port-state response")
 
         for number in range(1, max_port_num + 1):
             state = PortPoeState(

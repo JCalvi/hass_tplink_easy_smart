@@ -23,14 +23,14 @@ class TpLinkFeaturesDetector:
         self._is_initialized = False
 
     @staticmethod
-    def disconnected_as_false(func):
+    def disconnected_as_unknown(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> bool:
+        async def wrapper(*args, **kwargs) -> bool | None:
             try:
                 return await func(*args, **kwargs)
             except ApiCallError as ace:
                 if ace.category == APICALL_ERRCAT_DISCONNECTED:
-                    return False
+                    return None
                 raise
 
         return wrapper
@@ -59,7 +59,7 @@ class TpLinkFeaturesDetector:
         return decorator
 
     @log_feature(FEATURE_POE)
-    @disconnected_as_false
+    @disconnected_as_unknown
     async def _is_poe_available(self) -> bool:
         data = await self._core_api.get_variables(
             URL_POE_SETTINGS_GET,
@@ -68,10 +68,10 @@ class TpLinkFeaturesDetector:
                 ("poe_port_num", VariableType.Int),
             ],
         )
-        return data.get("portConfig") is not None and data.get("poe_port_num") > 0
+        return data.get("portConfig") is not None and (data.get("poe_port_num") or 0) > 0
 
     @log_feature(FEATURE_STATS)
-    @disconnected_as_false
+    @disconnected_as_unknown
     async def _is_stats_available(self) -> bool:
         data = await self._core_api.get_variables(
             URL_PORT_STATISTICS_GET,
@@ -80,14 +80,23 @@ class TpLinkFeaturesDetector:
                 ("max_port_num", VariableType.Int),
             ],
         )
-        return data.get("all_info") is not None and data.get("max_port_num") > 0
+        return data.get("all_info") is not None and (data.get("max_port_num") or 0) > 0
 
-    async def update(self) -> None:
-        """Update the available features list."""
-        if await self._is_poe_available():
-            self._available_features.add(FEATURE_POE)
-        if await self._is_stats_available():
-            self._available_features.add(FEATURE_STATS)
+    async def update(self) -> bool:
+        """Detect capabilities; disconnected probes remain unknown and retryable."""
+        complete = True
+        for feature, probe in (
+            (FEATURE_POE, self._is_poe_available),
+            (FEATURE_STATS, self._is_stats_available),
+        ):
+            result = await probe()
+            if result is None:
+                complete = False
+            elif result:
+                self._available_features.add(feature)
+            else:
+                self._available_features.discard(feature)
+        return complete
 
     def is_available(self, feature: str) -> bool:
         """Return true if feature is available."""

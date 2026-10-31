@@ -16,7 +16,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client.classes import PoePowerLimit, PoePriority, TpLinkSystemInfo
 from .client.const import FEATURE_POE, FEATURE_STATS
@@ -130,6 +130,10 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as ex:
             _LOGGER.warning("Can not schedule disconnect: %s", str(ex))
 
+    def is_feature_available_cached(self, feature: str) -> bool:
+        """Return the latest detected capability without making a request."""
+        return self._api.is_feature_available_cached(feature)
+
     async def is_feature_available(self, feature: str) -> bool:
         """Return true if specified feature is known and available."""
         return await self._api.is_feature_available(feature)
@@ -139,6 +143,8 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Update started")
         await self._update_switch_info()
         await self._update_port_states()
+        if not self._port_states:
+            raise UpdateFailed("No valid port states returned by the switch")
         await self._update_poe_state()
         await self._update_port_poe_states()
         await self._update_port_statistics()

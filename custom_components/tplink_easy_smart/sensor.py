@@ -79,24 +79,33 @@ async def async_setup_entry(
         ),
     ]
 
-    if await coordinator.is_feature_available(FEATURE_POE):
-        sensors.append(
-            TpLinkPoeInfoSensor(
-                coordinator,
-                TpLinkSensorEntityDescription(
-                    key="poe_consumption",
-                    icon="mdi:lightning-bolt",
-                    device_class=SensorDeviceClass.POWER,
-                    native_unit_of_measurement=UnitOfPower.WATT,
-                    state_class=SensorStateClass.MEASUREMENT,
-                    device_name=coordinator.get_switch_info().name,
-                    function_uid=_FUNCTION_UID_POE_INFO,
-                    function_name=_FUNCTION_DISPLAYED_NAME_POE_INFO,
-                ),
-            )
-        )
-
     async_add_entities(sensors)
+    poe_added = False
+
+    @callback
+    def add_poe_entity() -> None:
+        """Add PoE consumption when capability detection recovers."""
+        nonlocal poe_added
+        if not poe_added and coordinator.is_feature_available_cached(FEATURE_POE):
+            poe_added = True
+            async_add_entities([
+                TpLinkPoeInfoSensor(
+                    coordinator,
+                    TpLinkSensorEntityDescription(
+                        key="poe_consumption",
+                        icon="mdi:lightning-bolt",
+                        device_class=SensorDeviceClass.POWER,
+                        native_unit_of_measurement=UnitOfPower.WATT,
+                        state_class=SensorStateClass.MEASUREMENT,
+                        device_name=coordinator.get_switch_info().name,
+                        function_uid=_FUNCTION_UID_POE_INFO,
+                        function_name=_FUNCTION_DISPLAYED_NAME_POE_INFO,
+                    ),
+                )
+            ])
+
+    add_poe_entity()
+    config_entry.async_on_unload(coordinator.async_add_listener(add_poe_entity))
 
 
 # ---------------------------

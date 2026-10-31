@@ -41,7 +41,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         DATA_KEY_COORDINATOR
     ] = coordinator
 
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except BaseException:
+        # Setup retries create a new coordinator; close this attempt's session.
+        await coordinator.async_unload()
+        pop_coordinator(hass, config_entry)
+        raise
 
     config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
 

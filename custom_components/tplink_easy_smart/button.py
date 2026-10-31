@@ -4,7 +4,7 @@ import logging
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -33,10 +33,18 @@ async def async_setup_entry(
     """Set up TP-Link Easy Smart buttons."""
     coordinator: TpLinkDataUpdateCoordinator = get_coordinator(hass, config_entry)
 
-    if not await coordinator.is_feature_available(FEATURE_STATS):
-        return
+    button_added = False
 
-    async_add_entities([TpLinkClearPortStatisticsButton(coordinator)])
+    @callback
+    def add_statistics_button() -> None:
+        """Add the button if a disconnected statistics probe later succeeds."""
+        nonlocal button_added
+        if not button_added and coordinator.is_feature_available_cached(FEATURE_STATS):
+            button_added = True
+            async_add_entities([TpLinkClearPortStatisticsButton(coordinator)])
+
+    add_statistics_button()
+    config_entry.async_on_unload(coordinator.async_add_listener(add_statistics_button))
 
 
 class TpLinkClearPortStatisticsButton(
