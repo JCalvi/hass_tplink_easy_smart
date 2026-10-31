@@ -197,7 +197,7 @@ async def async_setup_services(hass: HomeAssistant, config_entry: ConfigEntry) -
         if service_name == ServiceNames.SET_GENERAL_POE_LIMIT:
             await _async_set_general_poe_limit(hass, service)
 
-        if service_name == ServiceNames.SET_PORT_POE_SETTINGS:
+        elif service_name == ServiceNames.SET_PORT_POE_SETTINGS:
             await _async_set_port_poe_settings(hass, service)
 
         else:

@@ -156,7 +156,7 @@ class TpLinkSwitch(CoordinatorEntity[TpLinkDataUpdateCoordinator], SwitchEntity,
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self.is_on is not None
+        return super().available and self.is_on is not None
 
     @callback
     def _handle_coordinator_update(self) -> None:

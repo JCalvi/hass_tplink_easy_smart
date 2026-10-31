@@ -151,7 +151,7 @@ class TpLinkBinarySensor(
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self._attr_available
+        return super().available and self._attr_available
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""

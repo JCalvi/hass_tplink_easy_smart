@@ -1,3 +1,15 @@
+## 0.3.7
+
+- Fixed the general PoE power-limit action reporting ServiceNotFound after successfully executing the command.
+- Fixed port-control cache bounds checking to prevent an IndexError when a successful command completes after the cached port list becomes empty.
+- Made sensor, binary sensor and switch availability respect coordinator update failures, so cached values are marked unavailable when communication fails.
+- Invalidated cached PoE consumption after a failed PoE read, so stale power readings are no longer presented as current.
+- Documented successful Clear port statistics testing on TL-SG105E, TL-SG108E and TL-SG108PE by @JCalvi, alongside the TL-SG116E V2.20 test by @bakernigel. Revisions and firmware for the additional models were not recorded.
+
+Validation: focused regression checks and Python compilation. No additional physical-switch tests performed for these fixes.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.3.6...v0.3.7
+
 ## 0.3.6
 
 - Added a device-level **Clear port statistics** configuration button to reset all port packet counters and refresh the displayed statistics. Thanks to [@bakernigel](https://github.com/bakernigel), who contributed the feature and tested it on a TL-SG116E V2.20.

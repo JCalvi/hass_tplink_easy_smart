@@ -180,6 +180,7 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
             self._poe_state = await self._api.get_poe_state()
         except Exception as ex:
             _LOGGER.warning("Can not get poe state: %s", repr(ex))
+            self._poe_state = None
 
     async def _update_port_poe_states(self):
         """Update port PoE states."""
@@ -223,7 +224,7 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
         index = number - 1
-        if len(self._port_states) >= index:
+        if 0 <= index < len(self._port_states):
             self._port_states[index].enabled = enabled
             self.async_update_listeners()
 
