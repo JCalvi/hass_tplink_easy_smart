@@ -8,6 +8,7 @@ from homeassistant.helpers import config_validation
 
 from .const import (
     DATA_KEY_COORDINATOR,
+    CONF_SWITCH_MAC,
     DEFAULT_POE_STATE_SWITCHES,
     DOMAIN,
     OPT_POE_STATE_SWITCHES,
@@ -43,6 +44,12 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     try:
         await coordinator.async_config_entry_first_refresh()
+        info = coordinator.get_switch_info()
+        mac = info.mac.casefold() if info and isinstance(info.mac, str) else None
+        if mac and config_entry.data.get(CONF_SWITCH_MAC) != mac:
+            hass.config_entries.async_update_entry(
+                config_entry, data={**config_entry.data, CONF_SWITCH_MAC: mac}
+            )
         config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
         set_coordinator(hass, config_entry, coordinator)
         await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)

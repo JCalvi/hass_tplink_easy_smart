@@ -1,3 +1,14 @@
+## 0.4.2
+
+- Rejects boolean and fractional polling intervals instead of silently converting them to one second. Positive integer values and integer strings remain supported; the configuration UI keeps a serializable numeric selector.
+- Prevents duplicate setup under a different display name using normalized endpoints and the switch MAC address. Newly configured entries receive a MAC-based unique ID. Existing entries gain identity metadata on successful setup without changing their existing unique IDs or entity IDs.
+- Builds IPv6 URLs correctly for raw and bracketed literals, including scoped addresses. IPv4 addresses and DNS hostnames remain supported. The host field rejects full URLs and host:port expressions before creating the client.
+- Adds regression coverage for strict input validation, form serialization, duplicate endpoints/MACs, legacy identity preservation and real IPv6 loopback HTTP requests.
+
+Validation: 182 tests pass locally under Home Assistant 2026.10.4, plus compilation and static/whitespace checks. No new physical-switch testing was performed. Minimum HA version remains 2026.10.4.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.1...v0.4.2
+
 ## 0.4.1
 
 - Invalidates cached port statistics, global PoE readings and per-port PoE readings when capability re-detection reports the feature unavailable. Existing entities stop presenting the old readings as current; they recover when the feature returns.

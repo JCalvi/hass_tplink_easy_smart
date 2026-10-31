@@ -8,6 +8,7 @@ DOMAIN: Final = "tplink_easy_smart"
 
 DATA_KEY_COORDINATOR: Final = "coordinator"
 DATA_KEY_SERVICES: Final = "services_count"
+CONF_SWITCH_MAC: Final = "mac_address"
 
 DEFAULT_HOST: Final = "192.168.0.1"
 DEFAULT_USER: Final = "admin"

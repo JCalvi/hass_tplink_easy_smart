@@ -9,6 +9,7 @@ from typing import Any, Final, Iterable, TypeAlias
 
 import aiohttp
 import json5
+from yarl import URL
 
 TIMEOUT: Final = 5.0
 APICALL_ERRCODE_UNAUTHORIZED = -2
@@ -195,7 +196,11 @@ class TpLinkWebApi:
         self._is_initialized = False
         self._call_locker = asyncio.Lock()
         schema = "https" if use_ssl else "http"
-        self._base_url = f"{schema}://{host}:{port}"
+        # URL.build brackets IPv6 literals and preserves zone identifiers.
+        host = host.strip()
+        if host.startswith("[") and host.endswith("]"):
+            host = host[1:-1]
+        self._base_url = str(URL.build(scheme=schema, host=host, port=port))
 
     @property
     def device_url(self):

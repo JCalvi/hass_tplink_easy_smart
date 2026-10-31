@@ -49,6 +49,8 @@ Copy `tplink_easy_smart` folder from [latest release](https://github.com/jcalvi/
 
 ## Configuration
 
+Enter a hostname or IP address without a scheme or port; the port has its own field. Raw and bracketed IPv6 addresses are accepted. Update intervals must be positive whole seconds. Duplicate switch setup is checked by endpoint and MAC address.
+
 Configuration > [Integrations](https://my.home-assistant.io/redirect/integrations/) > Add Integration > [TP-Link Easy Smart](https://my.home-assistant.io/redirect/config_flow_start/?domain=tplink_easy_smart)
 
 

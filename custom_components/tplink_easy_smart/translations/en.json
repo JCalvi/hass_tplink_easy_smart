@@ -32,7 +32,8 @@
       "auth_session_timeout": "The session timeout has expired."
     },
     "abort": {
-      "reauth_successful": "Credentials updated successfully."
+      "reauth_successful": "Credentials updated successfully.",
+      "already_configured": "This switch is already configured."
     }
   },
   "options": {

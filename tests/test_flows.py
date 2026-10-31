@@ -22,8 +22,13 @@ async def test_user_flow_authentication_and_duplicate_name(hass):
     client = Mock()
     client.authenticate = AsyncMock()
     client.disconnect = AsyncMock()
+    from types import SimpleNamespace
+
+    client.get_device_info = AsyncMock(
+        return_value=SimpleNamespace(mac="aa:bb:cc:dd:ee:ff")
+    )
     with patch(
-        "custom_components.tplink_easy_smart.config_flow.TpLinkWebApi",
+        "custom_components.tplink_easy_smart.config_flow.TpLinkApi",
         return_value=client,
     ):
         result = await flow.async_step_user(dict(data))
@@ -31,7 +36,7 @@ async def test_user_flow_authentication_and_duplicate_name(hass):
         client.disconnect.assert_awaited_once()
     entry = make_entry()
     hass.config_entries._entries[entry.entry_id] = entry
-    with patch("custom_components.tplink_easy_smart.config_flow.TpLinkWebApi") as api:
+    with patch("custom_components.tplink_easy_smart.config_flow.TpLinkApi") as api:
         result = await flow.async_step_user(dict(data))
         assert result["errors"]["base"] == "name_exists"
         api.assert_not_called()
@@ -47,8 +52,13 @@ async def test_user_bad_credentials_close_client(hass):
         side_effect=AuthenticationError("bad", "auth_invalid_credentials")
     )
     client.disconnect = AsyncMock()
+    from types import SimpleNamespace
+
+    client.get_device_info = AsyncMock(
+        return_value=SimpleNamespace(mac="aa:bb:cc:dd:ee:ff")
+    )
     with patch(
-        "custom_components.tplink_easy_smart.config_flow.TpLinkWebApi",
+        "custom_components.tplink_easy_smart.config_flow.TpLinkApi",
         return_value=client,
     ):
         result = await flow.async_step_user(dict(make_entry().data))

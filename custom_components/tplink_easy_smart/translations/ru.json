@@ -32,7 +32,8 @@
       "auth_session_timeout": "Таймаут сессии истек."
     },
     "abort": {
-      "reauth_successful": "Credentials updated successfully."
+      "reauth_successful": "Credentials updated successfully.",
+      "already_configured": "Этот коммутатор уже настроен."
     }
   },
   "options": {
