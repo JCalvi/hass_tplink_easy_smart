@@ -25,6 +25,7 @@ OPT_POE_STATE_SWITCHES: Final = "poe_state_switches"
 
 ATTR_MANUFACTURER: Final = "TP-Link"
 PLATFORMS: Final = [
+    Platform.BUTTON,
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,

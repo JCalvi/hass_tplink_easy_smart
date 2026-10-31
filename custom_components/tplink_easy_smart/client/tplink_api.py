@@ -25,6 +25,7 @@ from .const import (
     URL_PORT_SETTINGS_SET,
     URL_PORTS_SETTINGS_GET,
     URL_PORT_STATISTICS_GET,
+    URL_PORT_STATISTICS_CLEAR,
 )
 from .coreapi import TpLinkWebApi, VariableType
 from .utils import TpLinkFeaturesDetector
@@ -211,6 +212,14 @@ class TpLinkApi:
             result.append(state)
 
         return result
+
+    async def clear_port_statistics(self) -> None:
+        """Clear packet counters for all ports."""
+        if not await self.is_feature_available(FEATURE_STATS):
+            raise ActionError("Port statistics feature is not supported by device")
+
+        # The switch web UI submits the Clear button as a GET request.
+        await self._core_api.get(URL_PORT_STATISTICS_CLEAR, query="clear=Clear")
 
     async def get_port_poe_states(self) -> list[PortPoeState]:
         """Return the port states."""
