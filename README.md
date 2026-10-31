@@ -93,3 +93,7 @@ Advanced settings include:
 ### Clear port statistics
 
 When port statistics are supported, the integration creates a device-level **Clear port statistics** button. Pressing it clears the Tx/Rx good and bad packet counters for all ports and refreshes the displayed values immediately.
+
+## Credits
+
+- [@bakernigel](https://github.com/bakernigel) contributed the Clear port statistics button and tested it on a TL-SG116E V2.20.
