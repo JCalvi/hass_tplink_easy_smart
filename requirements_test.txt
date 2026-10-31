@@ -1,0 +1,4 @@
+homeassistant==2026.10.4
+json5==0.12.1
+pytest>=8,<10
+pytest-asyncio>=1,<2

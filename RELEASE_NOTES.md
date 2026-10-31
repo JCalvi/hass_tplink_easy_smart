@@ -1,3 +1,31 @@
+## 0.4.0
+
+Requires **Home Assistant 2026.10.4 or newer** and its supported Python runtime.
+
+### Fixes
+
+- Migrates legacy version-1 config entries through Home Assistant's update API, preserves existing options, and rejects newer unsupported configuration versions.
+- Replaces the version-dependent domain-wide service permission decorator with authorization for the selected switch/port. Restricted users cannot control other switches by substituting a MAC address.
+- Parses boolean action inputs correctly (`"false"`, `"off"` and `"0"` no longer enable PoE). Validates manual-limit requirements, port numbers, finite power limits and positive polling intervals before accepting them.
+- Makes service registration and cleanup idempotent across multiple switches and repeated unload attempts.
+- Validates switch identity, port/PoE arrays, packet counters and power readings; malformed/partial responses cannot silently count as successful statistics reads.
+- Parses multiple JavaScript variables on one line, script attributes, quoted commas and semicolons without executing JavaScript.
+- Stops unnecessary login retries on non-authentication HTTP errors. Expired sessions still reauthenticate once; failed/empty login results are handled explicitly and request options are forwarded consistently.
+- Serializes concurrent feature probes, retries transport failures after a cooldown, and rechecks negative results periodically. HTTP 404/405 capability responses are treated as unsupported rather than blocking otherwise usable switches.
+- Marks disabled ports as known/off rather than unavailable. PoE short-circuit and overtemperature states no longer report power on.
+- Corrects displayed PoE Class 1 and Class 2 labels.
+- Cleans up API sessions on failed setup/partial forwarding; explicitly associates coordinators with their config entry.
+- Supports credential reauthentication without deleting existing entities, with password fields masked in the configuration forms.
+
+### Validation and release process
+
+- Replaced isolated source-definition checks with tests importing real integration modules under Home Assistant 2026.10.4, plus a local simulated switch using aiohttp.
+- 118 tests cover HTTP/session behavior, parsing and invalid data, migrations, configuration flows, action permissions, multiple-switch service cleanup, entity availability and recovery, and counter clearing. A lifecycle test loads the integration through Home Assistant, creates all 11 entities, performs actions, and unloads it.
+- GitHub Actions must pass the test suite before publishing a release. ZIP packaging excludes bytecode caches.
+- Existing user-reported hardware tests remain documented in the README, including TL-SG108PE V5.0 firmware 1.0.0 Build 20230218 Rel.51358. No new physical-switch tests were performed for 0.4.0.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.3.9...v0.4.0
+
 ## 0.3.9
 
 - Failed initial port reads now fail setup and allow Home Assistant to retry, instead of completing setup with missing port entities.

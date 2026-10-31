@@ -2,6 +2,9 @@
 
 import logging
 from time import monotonic
+import asyncio
+import math
+import re
 from typing import Tuple
 
 from .classes import (
@@ -48,6 +51,37 @@ _POE_POWER_LIMITS_SET_MAP: dict[PoePowerLimit, Tuple[int, str | None]] = {
 }
 
 
+def _integer(value, label, minimum=0):
+    if isinstance(value, bool):
+        raise ValueError(f"Invalid {label}")
+    try:
+        number = int(value)
+        if float(value) != number or number < minimum:
+            raise ValueError(f"Invalid {label}")
+    except (TypeError, ValueError, OverflowError) as ex:
+        raise ValueError(f"Invalid {label}") from ex
+    return number
+
+
+def _number(value, label):
+    if isinstance(value, bool):
+        raise ValueError(f"Invalid {label}")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as ex:
+        raise ValueError(f"Invalid {label}") from ex
+    if not math.isfinite(number) or number < 0:
+        raise ValueError(f"Invalid {label}")
+    return number
+
+
+def _arrays(data, fields, count):
+    values = [data.get(field) for field in fields]
+    if any(not isinstance(items, list) or len(items) < count for items in values):
+        raise ValueError("Incomplete port-state response")
+    return values
+
+
 # ---------------------------
 #   ActionError
 # ---------------------------
@@ -83,15 +117,21 @@ class TpLinkApi:
         self._core_api = TpLinkWebApi(host, port, use_ssl, user, password, verify_ssl)
         self._is_features_updated = False
         self._features_retry_at = 0.0
+        self._features_lock = asyncio.Lock()
         self._features = TpLinkFeaturesDetector(self._core_api)
         _LOGGER.debug("New instance of TpLinkApi created")
 
     async def _ensure_features_updated(self):
-        if not self._is_features_updated and monotonic() >= self._features_retry_at:
-            _LOGGER.debug("Updating available features")
-            self._is_features_updated = await self._features.update()
-            self._features_retry_at = monotonic() + 60
-            _LOGGER.debug("Available features updated")
+        async with self._features_lock:
+            if not self._is_features_updated and monotonic() >= self._features_retry_at:
+                complete = await self._features.update()
+                # Negative results also expire: an incomplete firmware page is not
+                # enough evidence to suppress a feature for the whole HA session.
+                self._is_features_updated = complete and all(
+                    self._features.is_available(feature)
+                    for feature in (FEATURE_POE, FEATURE_STATS)
+                )
+                self._features_retry_at = monotonic() + (300 if complete else 60)
 
     def is_feature_available_cached(self, feature: str) -> bool:
         """Return the last detected capability without network access."""
@@ -125,13 +165,19 @@ class TpLinkApi:
             if data is None:
                 return None
             array = data.get(key, [])
-            if len(array) != 1:
+            if not isinstance(array, list) or len(array) != 1:
                 return None
             return array[0]
 
+        mac = get_value("macStr")
+        if (
+            not isinstance(mac, str)
+            or re.fullmatch(r"(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", mac) is None
+        ):
+            raise ValueError("Missing or invalid switch MAC address")
         return TpLinkSystemInfo(
-            name=get_value("descriStr"),
-            mac=get_value("macStr"),
+            name=get_value("descriStr") or "TP-Link Switch",
+            mac=mac,
             ip=get_value("ipStr"),
             netmask=get_value("netmaskStr"),
             gateway=get_value("gatewayStr"),
@@ -152,12 +198,9 @@ class TpLinkApi:
         result: list[PortState] = []
 
         all_info = data.get("all_info")
-        if not all_info:
-            return result
-
-        max_port_num = data.get("max_port_num")
-        if not max_port_num:
-            return result
+        if not isinstance(all_info, dict):
+            raise ValueError("Missing port information")
+        max_port_num = _integer(data.get("max_port_num"), "port count", minimum=1)
 
         enabled_flags = all_info.get("state")
         speeds_config = all_info.get("spd_cfg")
@@ -166,8 +209,11 @@ class TpLinkApi:
         fc_actual_flags = all_info.get("fc_act")
 
         arrays = (
-            enabled_flags, speeds_config, speeds_actual,
-            fc_config_flags, fc_actual_flags,
+            enabled_flags,
+            speeds_config,
+            speeds_actual,
+            fc_config_flags,
+            fc_actual_flags,
         )
         if any(
             not isinstance(values, list) or len(values) < max_port_num
@@ -178,11 +224,17 @@ class TpLinkApi:
         for number in range(1, max_port_num + 1):
             state = PortState(
                 number=number,
-                speed_config=PortSpeed(speeds_config[number - 1]),
-                speed_actual=PortSpeed(speeds_actual[number - 1]),
-                enabled=enabled_flags[number - 1] == 1,
-                flow_control_config=fc_config_flags[number - 1] == 1,
-                flow_control_actual=fc_actual_flags[number - 1] == 1,
+                speed_config=PortSpeed(
+                    _integer(speeds_config[number - 1], "port enum")
+                ),
+                speed_actual=PortSpeed(
+                    _integer(speeds_actual[number - 1], "port enum")
+                ),
+                enabled=_integer(enabled_flags[number - 1], "port flag") == 1,
+                flow_control_config=_integer(fc_config_flags[number - 1], "port flag")
+                == 1,
+                flow_control_actual=_integer(fc_actual_flags[number - 1], "port flag")
+                == 1,
             )
             result.append(state)
 
@@ -203,26 +255,21 @@ class TpLinkApi:
         result: list[PortStatistics] = []
 
         all_info = data.get("all_info")
-        if not all_info:
-            return result
+        if not isinstance(all_info, dict):
+            raise ValueError("Missing port information")
+        max_port_num = _integer(data.get("max_port_num"), "port count", minimum=1)
 
-        max_port_num = data.get("max_port_num")
-        if not max_port_num:
-            return result
-
-        pkts = all_info.get("pkts") or []
-        enabled_flags = all_info.get("state") or []
+        (pkts,) = _arrays(all_info, ("pkts",), max_port_num * 4)
+        (enabled_flags,) = _arrays(all_info, ("state",), max_port_num)
         k = 0
         for number in range(1, max_port_num + 1):
-            if k + 4 > len(pkts) or number > len(enabled_flags):
-                break
             state = PortStatistics(
                 number=number,
-                enabled=enabled_flags[number - 1] == 1,
-                tx_good_pkts=pkts[k + 0],
-                tx_bad_pkts=pkts[k + 1],
-                rx_good_pkts=pkts[k + 2],
-                rx_bad_pkts=pkts[k + 3],
+                enabled=_integer(enabled_flags[number - 1], "port flag") == 1,
+                tx_good_pkts=_integer(pkts[k + 0], "packet counter"),
+                tx_bad_pkts=_integer(pkts[k + 1], "packet counter"),
+                rx_good_pkts=_integer(pkts[k + 2], "packet counter"),
+                rx_bad_pkts=_integer(pkts[k + 3], "packet counter"),
             )
             k += 4
             result.append(state)
@@ -272,8 +319,14 @@ class TpLinkApi:
         powerstatus_flags = port_config.get("powerstatus")
 
         arrays = (
-            state_flags, priority_flags, powerlimit_flags, powers,
-            currents, voltages, pdclass_flags, powerstatus_flags,
+            state_flags,
+            priority_flags,
+            powerlimit_flags,
+            powers,
+            currents,
+            voltages,
+            pdclass_flags,
+            powerstatus_flags,
         )
         if any(
             not isinstance(values, list) or len(values) < max_port_num
@@ -284,15 +337,21 @@ class TpLinkApi:
         for number in range(1, max_port_num + 1):
             state = PortPoeState(
                 number=number,
-                enabled=state_flags[number - 1] == 1,
-                priority=PoePriority(priority_flags[number - 1]),
-                current=currents[number - 1],
-                voltage=voltages[number - 1] / 10,
-                power_limit=PoePowerLimit.try_parse(powerlimit_flags[number - 1])
-                or powerlimit_flags[number - 1] / 10,
-                power_status=PoePowerStatus(powerstatus_flags[number - 1]),
-                pd_class=PoeClass.try_parse(pdclass_flags[number - 1]),
-                power=powers[number - 1] / 10,
+                enabled=_integer(state_flags[number - 1], "port flag") == 1,
+                priority=PoePriority(_integer(priority_flags[number - 1], "port enum")),
+                current=_number(currents[number - 1], "PoE current"),
+                voltage=_number(voltages[number - 1], "PoE value") / 10,
+                power_limit=PoePowerLimit.try_parse(
+                    _integer(powerlimit_flags[number - 1], "PoE limit")
+                )
+                or _number(powerlimit_flags[number - 1], "PoE value") / 10,
+                power_status=PoePowerStatus(
+                    _integer(powerstatus_flags[number - 1], "port enum")
+                ),
+                pd_class=PoeClass.try_parse(
+                    _integer(pdclass_flags[number - 1], "PoE class")
+                ),
+                power=_number(powers[number - 1], "PoE power") / 10,
             )
             result.append(state)
 
@@ -313,11 +372,26 @@ class TpLinkApi:
             return None
 
         return PoeState(
-            power_limit=poe_config.get("system_power_limit", 0) / 10,
-            power_remain=poe_config.get("system_power_remain", 0) / 10,
-            power_limit_min=poe_config.get("system_power_limit_min", 0) / 10,
-            power_limit_max=poe_config.get("system_power_limit_max", 0) / 10,
-            power_consumption=poe_config.get("system_power_consumption", 0) / 10,
+            power_limit=_number(
+                poe_config.get("system_power_limit"), "system_power_limit"
+            )
+            / 10,
+            power_remain=_number(
+                poe_config.get("system_power_remain"), "system_power_remain"
+            )
+            / 10,
+            power_limit_min=_number(
+                poe_config.get("system_power_limit_min"), "system_power_limit_min"
+            )
+            / 10,
+            power_limit_max=_number(
+                poe_config.get("system_power_limit_max"), "system_power_limit_max"
+            )
+            / 10,
+            power_consumption=_number(
+                poe_config.get("system_power_consumption"), "system_power_consumption"
+            )
+            / 10,
         )
 
     async def set_port_state(
@@ -328,6 +402,9 @@ class TpLinkApi:
         flow_control_config: bool,
     ) -> None:
         """Change port state."""
+        number = _integer(number, "port number", minimum=1)
+        if number > len(await self.get_port_states()):
+            raise ActionError("Port number exceeds switch port count")
         query: str = (
             f"portid={number}&"
             f"state={1 if enabled else 0}&"
@@ -342,6 +419,7 @@ class TpLinkApi:
         if not await self.is_feature_available(FEATURE_POE):
             raise ActionError("POE feature is not supported by device")
 
+        limit = _number(limit, "PoE limit")
         current_state = await self.get_poe_state()
         if not current_state:
             raise ActionError("Can not get actual PoE state")
@@ -374,6 +452,7 @@ class TpLinkApi:
         if not await self.is_feature_available(FEATURE_POE):
             raise ActionError("POE feature is not supported by device")
         """Change port poe settings."""
+        port_number = _integer(port_number, "port number", minimum=1)
         if port_number < 1:
             raise ActionError("Port number should be greater than or equals to 1")
 
@@ -398,7 +477,10 @@ class TpLinkApi:
             ppowerlimit, ppowerlimit2 = _POE_POWER_LIMITS_SET_MAP.get(power_limit)
             if not ppowerlimit:
                 raise ActionError("Invalid PoePowerLimit specified")
-        elif isinstance(power_limit, float):
+        elif isinstance(power_limit, (float, int)) and not isinstance(
+            power_limit, bool
+        ):
+            power_limit = _number(power_limit, "manual PoE limit")
             if 0.1 <= power_limit <= 30.0:  # hardcoded in Tp-Link javascript
                 ppowerlimit = 6
                 ppowerlimit2 = power_limit

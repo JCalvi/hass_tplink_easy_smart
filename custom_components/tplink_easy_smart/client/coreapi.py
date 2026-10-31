@@ -1,46 +1,35 @@
-"""TP-Link web api core functions."""
+"""Authenticated HTTP transport and parsing for the Easy Smart web interface."""
 
 import asyncio
+from enum import Enum
+from html.parser import HTMLParser
 import logging
 import re
-from enum import Enum
-from typing import Callable, Dict, Final, Iterable, Tuple, TypeAlias
+from typing import Any, Final, Iterable, TypeAlias
 
 import aiohttp
 import json5
-from aiohttp import ClientResponse, ServerDisconnectedError
 
 TIMEOUT: Final = 5.0
-
-APICALL_ERRCODE_UNAUTHORIZED: Final = -2
-APICALL_ERRCODE_REQUEST: Final = -3
-APICALL_ERRCODE_DISCONNECTED: Final = -4
-
-APICALL_ERRCAT_CREDENTIALS: Final = "user_pass_err"
-APICALL_ERRCAT_REQUEST: Final = "request_error"
-APICALL_ERRCAT_UNAUTHORIZED: Final = "unauthorized"
-APICALL_ERRCAT_DISCONNECTED: Final = "disconnected"
-
-AUTH_FAILURE_GENERAL: Final = "auth_general"
-AUTH_FAILURE_CREDENTIALS: Final = "auth_invalid_credentials"
-AUTH_USER_BLOCKED: Final = "auth_user_blocked"
-AUTH_TOO_MANY_USERS: Final = "auth_too_many_users"
-AUTH_SESSION_TIMEOUT: Final = "auth_session_timeout"
-
-_SCRIPT_REGEX = r".*<script>(.*)<\/script>"
-_VARIABLES_REGEX = r".*var\s+(?P<variable>[a-zA-Z0-9_]+)\s*=\s*(?P<value>[^;]+);\s*"
-_ARRAY_VALUES_REGEX = r"\s*new\s*Array\s*\((?P<items>[^\)]*)\)"
-
+APICALL_ERRCODE_UNAUTHORIZED = -2
+APICALL_ERRCODE_REQUEST = -3
+APICALL_ERRCODE_DISCONNECTED = -4
+APICALL_ERRCAT_CREDENTIALS = "user_pass_err"
+APICALL_ERRCAT_REQUEST = "request_error"
+APICALL_ERRCAT_UNAUTHORIZED = "unauthorized"
+APICALL_ERRCAT_DISCONNECTED = "disconnected"
+AUTH_FAILURE_GENERAL = "auth_general"
+AUTH_FAILURE_CREDENTIALS = "auth_invalid_credentials"
+AUTH_USER_BLOCKED = "auth_user_blocked"
+AUTH_TOO_MANY_USERS = "auth_too_many_users"
+AUTH_SESSION_TIMEOUT = "auth_session_timeout"
+_VAR_LOGON_INFO = "logonInfo"
+_ARRAY_VALUES_REGEX = r"\s*new\s*Array\s*\((?P<items>.*)\)\s*"
+_VARIABLES_REGEX = re.compile(r"\bvar\s+([a-zA-Z_$][\w$]*)\s*=\s*")
 _LOGGER = logging.getLogger(__name__)
-
-VariableValue: TypeAlias = str | int | list[str] | dict[str, any]
-
-_VAR_LOGON_INFO: str = "logonInfo"
+VariableValue: TypeAlias = str | int | list[str] | dict[str, Any]
 
 
-# ---------------------------
-#   VariableType
-# ---------------------------
 class VariableType(Enum):
     Str = 0
     Int = 1
@@ -48,427 +37,315 @@ class VariableType(Enum):
     Dict = 3
 
 
-# ---------------------------
-#   AuthenticationError
-# ---------------------------
 class AuthenticationError(Exception):
-    def __init__(self, message: str, reason_code: str) -> None:
-        """Initialize."""
+    def __init__(self, message: str, reason_code: str):
         super().__init__(message)
-        self._message = message
         self._reason_code = reason_code
 
     @property
-    def reason_code(self) -> str | None:
-        """Error reason code."""
+    def reason_code(self):
         return self._reason_code
 
-    def __str__(self, *args, **kwargs) -> str:
-        """Return str(self)."""
-        return f"{self._message}; reason: {self._reason_code}"
 
-    def __repr__(self) -> str:
-        """Return repr(self)."""
-        return self.__str__()
-
-
-# ---------------------------
-#   ApiCallError
-# ---------------------------
 class ApiCallError(Exception):
     def __init__(
-        self, message: str, error_code: int | None, error_category: str | None
+        self,
+        message: str,
+        error_code: int | None,
+        error_category: str | None,
+        http_status: int | None = None,
     ):
-        """Initialize."""
         super().__init__(message)
-        self._message = message
         self._error_code = error_code
         self._error_category = error_category
+        self.http_status = http_status
 
     @property
-    def code(self) -> int | None:
-        """Error code."""
+    def code(self):
         return self._error_code
 
     @property
-    def category(self) -> int | None:
-        """Error category."""
+    def category(self) -> str | None:
         return self._error_category
 
-    def __str__(self, *args, **kwargs) -> str:
-        """Return str(self)."""
-        return f"{self._message}; code: {self._error_code}, category: {self._error_category}"
 
-    def __repr__(self) -> str:
-        """Return repr(self)."""
-        return self.__str__()
+class _Scripts(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.scripts = []
+        self._parts = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self._parts = []
+
+    def handle_data(self, data):
+        if self._parts is not None:
+            self._parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self._parts is not None:
+            self.scripts.append("".join(self._parts))
+            self._parts = None
 
 
-# ---------------------------
-#   _get_response_text
-# ---------------------------
-async def _get_response_text(response: ClientResponse) -> str:
-    content_bytes = await response.content.read()
-    text = content_bytes.decode("utf-8")
-    return text
-
-
-# ---------------------------
-#   _get_variables
-# ---------------------------
 def _get_variables(page: str) -> dict[str, str]:
+    """Extract values without executing JavaScript or splitting quoted semicolons."""
+    parser = _Scripts()
+    parser.feed(page)
     result = {}
-
-    script_match = re.match(_SCRIPT_REGEX, page, re.RegexFlag.DOTALL)
-    if not script_match:
-        return result
-
-    script_content = script_match.group(0)
-
-    for variable_match in re.finditer(_VARIABLES_REGEX, script_content):
-        variable = variable_match.group("variable")
-        value = variable_match.group("value")
-        result[variable] = value
-
+    for script in parser.scripts:
+        position = 0
+        while match := _VARIABLES_REGEX.search(script, position):
+            start = match.end()
+            quote = None
+            escaped = False
+            depth = 0
+            end = start
+            for end in range(start, len(script)):
+                char = script[end]
+                if quote:
+                    if escaped:
+                        escaped = False
+                    elif char == "\\":
+                        escaped = True
+                    elif char == quote:
+                        quote = None
+                elif char in "\"'":
+                    quote = char
+                elif char in "([{":
+                    depth += 1
+                elif char in ")]}":
+                    depth -= 1
+                elif char == ";" and depth == 0:
+                    break
+            else:
+                end = len(script)
+            value = script[start:end].strip()
+            if value and quote is None and depth == 0:
+                result[match.group(1)] = value
+            position = max(end + 1, start + 1)
     return result
 
 
-# ---------------------------
-#   _to_array
-# ---------------------------
 def _to_list(array_data: str) -> Iterable[str]:
-    match = re.match(_ARRAY_VALUES_REGEX, array_data)
+    match = re.fullmatch(_ARRAY_VALUES_REGEX, array_data, re.DOTALL)
     if match is None:
         raise ValueError("Invalid JavaScript array value")
-    array_items = match.group("items").strip()
-    if array_items:
-        for item in array_items.split(","):
-            yield item.strip(' ,\r\n\t"')
+    values = json5.loads("[" + match.group("items") + "]")
+    if any(not isinstance(value, (str, int, float)) for value in values):
+        raise ValueError("Invalid JavaScript array item")
+    return [str(value) for value in values]
 
 
-# ---------------------------
-#   _to_dict
-# ---------------------------
-def _to_dict(json_data: str) -> dict[str, any] | None:
-    return json5.loads(json_data) if json_data else None
+def _to_dict(json_data: str) -> dict[str, Any] | None:
+    if not json_data:
+        return None
+    value = json5.loads(json_data)
+    if not isinstance(value, dict):
+        raise ValueError("Expected a JavaScript object")
+    return value
 
 
-# ---------------------------
-#   _convert_value
-# ---------------------------
-def _convert_value(value: str, variable_type: VariableType) -> VariableValue | None:
+def _convert_value(value: str | None, variable_type: VariableType):
     if value is None:
         return None
-    elif variable_type == VariableType.Str:
-        return value.strip("'\"")
-    elif variable_type == VariableType.Int:
+    if variable_type == VariableType.Str:
+        return json5.loads(value) if value.startswith(("'", '"')) else value
+    if variable_type == VariableType.Int:
         return int(value)
-    elif variable_type == VariableType.List:
+    if variable_type == VariableType.List:
         return list(_to_list(value))
-    elif variable_type == VariableType.Dict:
+    if variable_type == VariableType.Dict:
         return _to_dict(value)
+    raise ValueError("Unknown variable type")
 
 
-# ---------------------------
-#   _get_variable
-# ---------------------------
-def _get_variable(
-    page: str, name: str, variable_type: VariableType
-) -> VariableValue | None:
-    variables = _get_variables(page)
-    if not variables:
-        return None
-
-    variable_str = variables.get(name)
-    if not variable_str:
-        return None
-
-    return _convert_value(variable_str, variable_type)
+def _get_variable(page, name, variable_type):
+    return _convert_value(_get_variables(page).get(name), variable_type)
 
 
-# ---------------------------
-#   _check_authorized
-# ---------------------------
-def _check_authorized(response: ClientResponse, result: str) -> bool:
-    if response.status != 200:
-        return False
-    if not result:
-        return False
-    logon_info = _get_variable(result, _VAR_LOGON_INFO, VariableType.Str)
-    if logon_info:
-        return False
-    return True
+def _is_login_page(result):
+    return _VAR_LOGON_INFO in _get_variables(result) or bool(
+        re.search(
+            r"<form\b[^>]*\baction\s*=\s*['\"]?/?logon\.cgi", result, re.IGNORECASE
+        )
+    )
 
 
-# ---------------------------
-#   TpLinkWebApi
-# ---------------------------
+def _check_authorized(response, result):
+    return (
+        response.status == 200 and bool(result.strip()) and not _is_login_page(result)
+    )
+
+
+async def _get_response_text(response):
+    try:
+        return (await response.content.read()).decode("utf-8")
+    finally:
+        response.release()
+
+
 class TpLinkWebApi:
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        use_ssl: bool,
-        user: str,
-        password: str,
-        verify_ssl: bool,
-    ) -> None:
-        """Initialize."""
-        _LOGGER.debug("New instance of TpLinkWebApi created")
-        self._user: str = user
-        self._password: str = password
-        self._verify_ssl: bool = verify_ssl
-        self._session: aiohttp.ClientSession | None = None
-        self._active_csrf: Dict | None = None
-        self._is_initialized: bool = False
+    def __init__(self, host, port, use_ssl, user, password, verify_ssl):
+        self._user = user
+        self._password = password
+        self._verify_ssl = verify_ssl
+        self._session = None
+        self._is_initialized = False
         self._call_locker = asyncio.Lock()
-
         schema = "https" if use_ssl else "http"
-        self._base_url: str = f"{schema}://{host}:{port}"
+        self._base_url = f"{schema}://{host}:{port}"
 
     @property
-    def device_url(self) -> str:
-        """Return switch's configuration url."""
+    def device_url(self):
         return self._base_url
 
-    def _get_url(self, path) -> str:
-        """Return full address to the endpoint."""
+    def _get_url(self, path):
         return self._base_url + "/" + path
 
-    async def _ensure_initialized(self) -> None:
-        """Ensure that initial authorization was completed successfully."""
+    async def _ensure_initialized(self):
         if not self._is_initialized:
             await self.authenticate()
-            self._is_initialized = True
 
-    async def _get_raw(self, path: str) -> ClientResponse:
-        """Perform GET request to the specified relative URL and return raw ClientResponse."""
+    async def _raw_request(self, method, path, data=None):
         try:
-            _LOGGER.debug("Performing GET to %s", path)
-            response = await self._session.get(
-                url=self._get_url(path),
-                allow_redirects=True,
-                ssl=False if not self._verify_ssl else None,
-                timeout=TIMEOUT,
-            )
-            _LOGGER.debug("GET %s performed, status: %s", path, response.status)
-            return response
-        except ServerDisconnectedError as sde:
-            raise ApiCallError(
-                f"Can not perform GET request at {path} cause of {repr(sde)}",
-                APICALL_ERRCODE_DISCONNECTED,
-                APICALL_ERRCAT_DISCONNECTED,
-            )
-        except Exception as ex:
-            _LOGGER.error("GET %s failed: %s", path, str(ex))
-            raise ApiCallError(
-                f"Can not perform GET request at {path} cause of {repr(ex)}",
-                APICALL_ERRCODE_REQUEST,
-                APICALL_ERRCAT_REQUEST,
-            )
-
-    async def _post_raw(self, path: str, data: Dict) -> ClientResponse:
-        """Perform POST request to the specified relative URL with specified body and return raw ClientResponse."""
-        try:
-            _LOGGER.debug("Performing POST to %s", path)
-            response = await self._session.post(
-                url=self._get_url(path),
+            return await self._session.request(
+                method,
+                self._get_url(path),
                 data=data,
-                ssl=False if not self._verify_ssl else None,
-                timeout=TIMEOUT,
+                allow_redirects=True,
+                ssl=None if self._verify_ssl else False,
+                timeout=aiohttp.ClientTimeout(total=TIMEOUT),
             )
-            _LOGGER.debug("POST to %s performed, status: %s", path, response.status)
-            return response
-        except ServerDisconnectedError as sde:
+        except aiohttp.ServerDisconnectedError as ex:
             raise ApiCallError(
-                f"Can not perform POST request at {path} cause of {repr(sde)}",
+                f"Disconnected during {method} {path}",
                 APICALL_ERRCODE_DISCONNECTED,
                 APICALL_ERRCAT_DISCONNECTED,
-            )
-        except Exception as ex:
-            _LOGGER.error("POST %s failed: %s", path, str(ex))
+            ) from ex
+        except (aiohttp.ClientError, TimeoutError, OSError) as ex:
             raise ApiCallError(
-                f"Can not perform POST request at {path} cause of {repr(ex)}",
+                f"Failed {method} {path}: {type(ex).__name__}",
                 APICALL_ERRCODE_REQUEST,
                 APICALL_ERRCAT_REQUEST,
+            ) from ex
+
+    async def _get_raw(self, path):
+        return await self._raw_request("GET", path)
+
+    async def _post_raw(self, path, data):
+        return await self._raw_request("POST", path, data)
+
+    def _refresh_session(self):
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                cookie_jar=aiohttp.CookieJar(unsafe=True)
             )
-
-    def _refresh_session(self) -> None:
-        """Initialize the client session (if not exists) and clear cookies."""
-        _LOGGER.debug("Refresh session called")
-        if self._session is None:
-            """Unsafe cookies for IP addresses instead of domain names"""
-            jar = aiohttp.CookieJar(unsafe=True)
-            self._session = aiohttp.ClientSession(cookie_jar=jar)
-            _LOGGER.debug("Session created")
         self._session.cookie_jar.clear()
-        self._active_csrf = None
 
-    async def authenticate(self) -> None:
-        """Perform authentication and return true when authentication success"""
+    async def authenticate(self):
+        self._is_initialized = False
+        self._refresh_session()
         try:
-            _LOGGER.debug("Authentication started")
-            self._refresh_session()
-            _LOGGER.debug("Performing logon")
             response = await self._post_raw(
                 "logon.cgi",
                 {"username": self._user, "password": self._password, "logon": "Login"},
             )
-
-            if response.status != 200:
-                _LOGGER.error(
-                    "Authentication failed: can not perform POST, status is %s",
-                    response.status,
-                )
-                raise AuthenticationError("Failed to get index", AUTH_FAILURE_GENERAL)
-
             result = await _get_response_text(response)
-            if not result:
+            if response.status != 200:
+                raise AuthenticationError("Login request failed", AUTH_FAILURE_GENERAL)
+            items = _get_variable(result, _VAR_LOGON_INFO, VariableType.List)
+            if not items:
+                raise AuthenticationError("Missing login result", AUTH_FAILURE_GENERAL)
+            reasons = {
+                "1": AUTH_FAILURE_CREDENTIALS,
+                "2": AUTH_USER_BLOCKED,
+                "3": AUTH_TOO_MANY_USERS,
+                "4": AUTH_TOO_MANY_USERS,
+                "5": AUTH_SESSION_TIMEOUT,
+            }
+            if items[0] != "0":
                 raise AuthenticationError(
-                    "Failed to get Logon response body", AUTH_FAILURE_GENERAL
+                    "Login rejected", reasons.get(items[0], AUTH_FAILURE_GENERAL)
                 )
-
-            array_items: list[str] = _get_variable(
-                result, _VAR_LOGON_INFO, VariableType.List
-            )
-
-            if array_items[0] == "0":
-                _LOGGER.debug("Authentication success")
-                return
-            elif array_items[0] == "1":
-                raise AuthenticationError(
-                    "The user name or the password is wrong", AUTH_FAILURE_CREDENTIALS
-                )
-            elif array_items[0] == "2":
-                raise AuthenticationError(
-                    "The user is not allowed to login", AUTH_USER_BLOCKED
-                )
-            elif array_items[0] == "3":
-                raise AuthenticationError(
-                    "The number of the user that allowed to login has been full",
-                    AUTH_TOO_MANY_USERS,
-                )
-            elif array_items[0] == "4":
-                raise AuthenticationError(
-                    "The number of the login user has been full, it is allowed 16 people to login at the same time",
-                    AUTH_TOO_MANY_USERS,
-                )
-            elif array_items[0] == "5":
-                raise AuthenticationError(
-                    "The session is timeout.",
-                    AUTH_SESSION_TIMEOUT,
-                )
-            else:
-                raise AuthenticationError(
-                    f"Unknonwn error {array_items[0]}", AUTH_FAILURE_GENERAL
-                )
-
-        except AuthenticationError as ex:
-            _LOGGER.warning("Authentication failed: %s", {repr(ex)})
+            self._is_initialized = True
+        except AuthenticationError:
             raise
-        except ApiCallError as ex:
-            _LOGGER.warning("Authentication failed: %s", {repr(ex)})
+        except (
+            ApiCallError,
+            aiohttp.ClientError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            UnicodeError,
+        ) as ex:
             raise AuthenticationError(
-                "Authentication failed due to api call error", AUTH_FAILURE_GENERAL
-            )
-        except Exception as ex:
-            _LOGGER.warning("Authentication failed: %s", {repr(ex)})
-            raise AuthenticationError(
-                "Authentication failed due to unknown error", AUTH_FAILURE_GENERAL
-            )
+                "Unable to read login response", AUTH_FAILURE_GENERAL
+            ) from ex
 
-    async def get(
-        self, path: str, query: str | None = None, **kwargs: any
-    ) -> str | None:
-        """Perform GET request to the relative address."""
+    async def _request(self, method, path, data=None, check_authorized=None):
         async with self._call_locker:
             await self._ensure_initialized()
-
-            relative_url = path if not query else f"{path}?{query}"
-
-            check_authorized: Callable[[ClientResponse, str], bool] = (
-                kwargs.get("check_authorized") or _check_authorized
+            checker = check_authorized or _check_authorized
+            for attempt in range(2):
+                response = await (
+                    self._get_raw(path)
+                    if method == "GET"
+                    else self._post_raw(path, data)
+                )
+                try:
+                    result = await _get_response_text(response)
+                except (aiohttp.ClientError, TimeoutError, UnicodeError) as ex:
+                    raise ApiCallError(
+                        "Unable to read switch response",
+                        APICALL_ERRCODE_REQUEST,
+                        APICALL_ERRCAT_REQUEST,
+                    ) from ex
+                if checker(response, result):
+                    return result
+                needs_login = response.status in (401, 403) or (
+                    response.status == 200 and _is_login_page(result)
+                )
+                if not needs_login:
+                    raise ApiCallError(
+                        f"Invalid response from {path}: HTTP {response.status}",
+                        APICALL_ERRCODE_REQUEST,
+                        APICALL_ERRCAT_REQUEST,
+                        response.status,
+                    )
+                if attempt == 0:
+                    await self.authenticate()
+            self._is_initialized = False
+            raise ApiCallError(
+                "Switch session remains unauthorized",
+                APICALL_ERRCODE_UNAUTHORIZED,
+                APICALL_ERRCAT_UNAUTHORIZED,
             )
 
-            response = await self._get_raw(relative_url)
-            response_text = await _get_response_text(response)
-            _LOGGER.debug("Response: %s", response_text)
+    async def get(self, path, query=None, **kwargs):
+        relative_url = path if not query else f"{path}?{query}"
+        return await self._request(
+            "GET", relative_url, check_authorized=kwargs.get("check_authorized")
+        )
 
-            if not check_authorized(response, response_text):
-                _LOGGER.debug("GET seems unauthorized, trying to re-authenticate")
-                await self.authenticate()
+    async def post(self, path, data=None, **kwargs):
+        return await self._request("POST", path, data, kwargs.get("check_authorized"))
 
-                response = await self._get_raw(relative_url)
-                response_text = await _get_response_text(response)
+    async def get_variables(self, path, variables, **kwargs):
+        values = _get_variables(await self.get(path, **kwargs))
+        return {
+            name: _convert_value(values.get(name), kind) for name, kind in variables
+        }
 
-                if not check_authorized(response, response_text):
-                    raise ApiCallError(
-                        f"Api call error, status:{response.status}",
-                        APICALL_ERRCODE_UNAUTHORIZED,
-                        APICALL_ERRCAT_UNAUTHORIZED,
-                    )
+    async def get_variable(self, path, variable, variable_type, **kwargs):
+        return (
+            await self.get_variables(path, [(variable, variable_type)], **kwargs)
+        ).get(variable)
 
-            return response_text
-
-    async def post(
-        self, path: str, data: dict | None = None, **kwargs: any
-    ) -> str | None:
-        """Perform POST request to the relative address."""
+    async def disconnect(self):
         async with self._call_locker:
-            await self._ensure_initialized()
-
-            check_authorized: Callable[[ClientResponse, str], bool] = (
-                kwargs.get("check_authorized") or _check_authorized
-            )
-
-            response = await self._post_raw(path, data)
-            response_text = await _get_response_text(response)
-            _LOGGER.debug("Response: %s", response_text)
-
-            if not check_authorized(response, response_text):
-                _LOGGER.debug("POST seems unauthorized, trying to re-authenticate")
-                await self.authenticate()
-
-                response = await self._post_raw(path, data)
-                response_text = await _get_response_text(response)
-
-                if not check_authorized(response, response_text):
-                    raise ApiCallError(
-                        f"Api call error, status:{response.status}",
-                        APICALL_ERRCODE_UNAUTHORIZED,
-                        APICALL_ERRCAT_UNAUTHORIZED,
-                    )
-
-            return response_text
-
-    async def get_variables(
-        self, path: str, variables: Iterable[Tuple[str, VariableType]], **kwargs: any
-    ) -> dict[str, VariableValue | None] | None:
-        """Perform GET request to the relative address and get dict with the specified variables."""
-        response_text = await self.get(path)
-        result = {}
-        response_variables = _get_variables(response_text)
-
-        for variable, variable_type in variables:
-            result[variable] = _convert_value(
-                response_variables.get(variable), variable_type
-            )
-
-        _LOGGER.debug("Result is %s", result)
-
-        return result
-
-    async def get_variable(
-        self, path: str, variable: str, variable_type: VariableType, **kwargs: any
-    ) -> VariableValue | None:
-        """Perform GET request to the relative address and get the value of the specified variable."""
-        result = await self.get_variables(path, [(variable, variable_type)], **kwargs)
-        return result.get(variable) if result else None
-
-    async def disconnect(self) -> None:
-        """Close session."""
-        _LOGGER.debug("Disconnecting")
-        if self._session is not None:
-            await self._session.close()
-            self._session = None
-        self._is_initialized = False
+            if self._session is not None:
+                await self._session.close()
+                self._session = None
+            self._is_initialized = False

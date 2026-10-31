@@ -1,12 +1,18 @@
 import logging
 from functools import wraps
 
-from .const import FEATURE_POE, URL_POE_SETTINGS_GET, FEATURE_STATS, URL_PORT_STATISTICS_GET
+from .const import (
+    FEATURE_POE,
+    URL_POE_SETTINGS_GET,
+    FEATURE_STATS,
+    URL_PORT_STATISTICS_GET,
+)
 from .coreapi import (
     ApiCallError,
     TpLinkWebApi,
     VariableType,
     APICALL_ERRCAT_DISCONNECTED,
+    APICALL_ERRCAT_REQUEST,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,9 +35,16 @@ class TpLinkFeaturesDetector:
             try:
                 return await func(*args, **kwargs)
             except ApiCallError as ace:
-                if ace.category == APICALL_ERRCAT_DISCONNECTED:
+                if ace.http_status in (404, 405):
+                    return False
+                if ace.category in (
+                    APICALL_ERRCAT_DISCONNECTED,
+                    APICALL_ERRCAT_REQUEST,
+                ):
                     return None
                 raise
+            except (ValueError, TypeError):
+                return None
 
         return wrapper
 
@@ -68,7 +81,9 @@ class TpLinkFeaturesDetector:
                 ("poe_port_num", VariableType.Int),
             ],
         )
-        return data.get("portConfig") is not None and (data.get("poe_port_num") or 0) > 0
+        return (
+            data.get("portConfig") is not None and (data.get("poe_port_num") or 0) > 0
+        )
 
     @log_feature(FEATURE_STATS)
     @disconnected_as_unknown

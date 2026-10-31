@@ -100,7 +100,9 @@ async def async_setup_entry(
                         device_class=BinarySensorDeviceClass.CONNECTIVITY,
                         port_number=port_number,
                         device_name=coordinator.get_switch_info().name,
-                        function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(port_number),
+                        function_uid=_FUNCTION_UID_PORT_STATE_FORMAT.format(
+                            port_number
+                        ),
                         function_name=_FUNCTION_DISPLAYED_NAME_PORT_STATE_FORMAT.format(
                             port_number
                         ),
@@ -196,36 +198,53 @@ class TpLinkPortStateBinarySensor(TpLinkBinarySensor):
     def _handle_coordinator_update(self) -> None:
         # Remove old counters before applying the latest statistics snapshot.
         for key in (
-            "tx_good_packets", "rx_good_packets", "tx_bad_packets", "rx_bad_packets"
+            "tx_good_packets",
+            "rx_good_packets",
+            "tx_bad_packets",
+            "rx_bad_packets",
         ):
             self._attr_extra_state_attributes.pop(key, None)
 
         port_info = self.coordinator.get_port_state(self._port_number)
 
         if port_info:
-            self._attr_available = port_info.enabled
+            self._attr_available = True
 
             self._attr_is_on = (
                 port_info.enabled and port_info.speed_actual != PortSpeed.LINK_DOWN
             )
 
             self._attr_extra_state_attributes["number"] = port_info.number
-            self._attr_extra_state_attributes["enabled"] = 'Enabled' if port_info.enabled else 'Disabled'
-            self._attr_extra_state_attributes["flow_control_config"] = 'On' if port_info.flow_control_config else 'Off'
-            self._attr_extra_state_attributes["flow_control_actual"] = 'On' if port_info.flow_control_actual else 'Off'
+            self._attr_extra_state_attributes["enabled"] = (
+                "Enabled" if port_info.enabled else "Disabled"
+            )
+            self._attr_extra_state_attributes["flow_control_config"] = (
+                "On" if port_info.flow_control_config else "Off"
+            )
+            self._attr_extra_state_attributes["flow_control_actual"] = (
+                "On" if port_info.flow_control_actual else "Off"
+            )
             self._attr_extra_state_attributes["speed"] = DISPLAYED_PORT_SPEED.get(
                 port_info.speed_actual
             )
-            self._attr_extra_state_attributes[
-                "speed_config"
-            ] = DISPLAYED_PORT_SPEED.get(port_info.speed_config)
+            self._attr_extra_state_attributes["speed_config"] = (
+                DISPLAYED_PORT_SPEED.get(port_info.speed_config)
+            )
 
-            port_statistics= self.coordinator.get_port_statistics(self._port_number)
+            port_statistics = self.coordinator.get_port_statistics(self._port_number)
             if port_statistics:
-                self._attr_extra_state_attributes["tx_good_packets"] = port_statistics.tx_good_pkts
-                self._attr_extra_state_attributes["rx_good_packets"] = port_statistics.rx_good_pkts
-                self._attr_extra_state_attributes["tx_bad_packets"] = port_statistics.tx_bad_pkts
-                self._attr_extra_state_attributes["rx_bad_packets"] = port_statistics.rx_bad_pkts
+                self._attr_extra_state_attributes["tx_good_packets"] = (
+                    port_statistics.tx_good_pkts
+                )
+                self._attr_extra_state_attributes["rx_good_packets"] = (
+                    port_statistics.rx_good_pkts
+                )
+                self._attr_extra_state_attributes["tx_bad_packets"] = (
+                    port_statistics.tx_bad_pkts
+                )
+                self._attr_extra_state_attributes["rx_bad_packets"] = (
+                    port_statistics.rx_bad_pkts
+                )
         else:
             self._attr_available = False
             self._attr_is_on = None
@@ -254,20 +273,20 @@ class TpLinkPortPoeStateBinarySensor(TpLinkBinarySensor):
         port_poe_info = self.coordinator.get_port_poe_state(self._port_number)
 
         if port_poe_info:
-            self._attr_available = port_poe_info.enabled
+            self._attr_available = True
 
             self._attr_is_on = (
                 port_poe_info.enabled
-                and port_poe_info.power_status != PoePowerStatus.OFF
+                and port_poe_info.power_status == PoePowerStatus.ON
             )
 
             self._attr_extra_state_attributes["priority"] = DISPLAYED_POE_PRIORITY.get(
                 port_poe_info.priority
             )
-            self._attr_extra_state_attributes[
-                "power_limit"
-            ] = DISPLAYED_POE_POWER_LIMITS.get(
-                port_poe_info.power_limit, port_poe_info.power_limit
+            self._attr_extra_state_attributes["power_limit"] = (
+                DISPLAYED_POE_POWER_LIMITS.get(
+                    port_poe_info.power_limit, port_poe_info.power_limit
+                )
             )
             self._attr_extra_state_attributes["power_w"] = port_poe_info.power
             self._attr_extra_state_attributes["current_ma"] = port_poe_info.current
@@ -275,9 +294,9 @@ class TpLinkPortPoeStateBinarySensor(TpLinkBinarySensor):
             self._attr_extra_state_attributes["pd_class"] = DISPLAYED_POE_CLASSES.get(
                 port_poe_info.pd_class
             )
-            self._attr_extra_state_attributes[
-                "power_status"
-            ] = DISPLAYED_POE_POWER_STATUS.get(port_poe_info.power_status)
+            self._attr_extra_state_attributes["power_status"] = (
+                DISPLAYED_POE_POWER_STATUS.get(port_poe_info.power_status)
+            )
         else:
             self._attr_available = False
             self._attr_is_on = None

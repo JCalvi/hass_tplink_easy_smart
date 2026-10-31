@@ -1,4 +1,5 @@
 """Update coordinator for TP-Link."""
+
 from datetime import timedelta
 import logging
 
@@ -15,6 +16,8 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from .client.coreapi import AuthenticationError, ApiCallError, AUTH_FAILURE_CREDENTIALS
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -60,13 +63,29 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
             config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
 
+        if (
+            isinstance(update_interval, bool)
+            or not isinstance(update_interval, int)
+            or update_interval < 1
+        ):
+            _LOGGER.warning(
+                "Invalid update interval; using %s seconds", DEFAULT_SCAN_INTERVAL
+            )
+            update_interval = DEFAULT_SCAN_INTERVAL
+
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=config_entry.data[CONF_NAME],
             update_method=self.async_update,
             update_interval=timedelta(seconds=update_interval),
         )
+
+    @property
+    def entry_id(self) -> str:
+        """Return the owning configuration entry ID."""
+        return self._config.entry_id
 
     @property
     def unique_id(self) -> str:
@@ -140,15 +159,24 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_update(self) -> None:
         """Asynchronous update of all data."""
-        _LOGGER.debug("Update started")
-        await self._update_switch_info()
-        await self._update_port_states()
-        if not self._port_states:
-            raise UpdateFailed("No valid port states returned by the switch")
-        await self._update_poe_state()
-        await self._update_port_poe_states()
-        await self._update_port_statistics()
-        _LOGGER.debug("Update completed")
+        try:
+            _LOGGER.debug("Update started")
+            await self._update_switch_info()
+            await self._update_port_states()
+            if not self._port_states:
+                raise UpdateFailed("No valid port states returned by the switch")
+            await self._update_poe_state()
+            await self._update_port_poe_states()
+            await self._update_port_statistics()
+            _LOGGER.debug("Update completed")
+        except AuthenticationError as ex:
+            if ex.reason_code == AUTH_FAILURE_CREDENTIALS:
+                raise ConfigEntryAuthFailed("Switch credentials were rejected") from ex
+            raise UpdateFailed(
+                "Switch authentication is temporarily unavailable"
+            ) from ex
+        except (ApiCallError, ValueError, TypeError) as ex:
+            raise UpdateFailed(str(ex)) from ex
 
     async def async_unload(self) -> None:
         """Unload the coordinator and disconnect from API."""

@@ -2,12 +2,14 @@
 
 Home Assistant custom component for control TP-Link Easy Smart switches over LAN.
 
+**Requires Home Assistant 2026.10.4 or newer.** Version 0.4.0 is tested against HA 2026.10.4; it does not retain compatibility with older HA releases.
+
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/jcalvi/hass_tplink_easy_smart)](https://github.com/jcalvi/hass_tplink_easy_smart/blob/master/LICENSE.md)
 
 [![Release](https://img.shields.io/github/v/release/JCalvi/hass_tplink_easy_smart)](https://github.com/jcalvi/hass_tplink_easy_smart/releases/latest)
 [![ReleaseDate](https://img.shields.io/github/release-date/JCalvi/hass_tplink_easy_smart)](https://github.com/JCalvi/hass_tplink_easy_smart/releases/latest)
-![Maintained](https://img.shields.io/maintenance/yes/2025)
+![Maintained](https://img.shields.io/maintenance/yes/2026)
 
 ## Key features
 
@@ -100,3 +102,20 @@ Clearing statistics has been tested on TL-SG105E, TL-SG108E and TL-SG108PE by [@
 ## Credits
 
 - [@bakernigel](https://github.com/bakernigel) contributed the Clear port statistics button and tested it on a TL-SG116E V2.20.
+
+## Development and testing
+
+Use Python 3.14.2 or newer:
+
+```sh
+python -m pip install -r requirements_test.txt
+python -m pytest -q
+```
+
+The suite imports the real Home Assistant integration and tests HTTP transport against a local simulated switch. It covers configuration migration, options and reauthentication, permissions on the selected switch/port, service lifecycle, availability, malformed responses, recovery, and counter clearing. Physical switch/firmware testing remains necessary for protocol compatibility.
+
+Releases run the tests before creating the tag and ZIP. Release notes are in [RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+### Action permissions
+
+Internal automations retain normal Home Assistant behavior. Administrators can manage all switches. For a restricted user, a port PoE action requires control permission on that port's registered PoE switch (or PoE state entity if controls are disabled). A global PoE limit change requires control permission on all registered entities of the target switch. Permission to control another switch does not grant access to the target.

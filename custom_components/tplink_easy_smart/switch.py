@@ -9,6 +9,7 @@ from typing import Final
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .client.const import FEATURE_POE
@@ -84,7 +85,9 @@ async def async_setup_entry(
         """Add ports discovered after a failed probe or temporary read failure."""
         sensors = []
 
-        if config_entry.options.get(OPT_PORT_STATE_SWITCHES, DEFAULT_PORT_STATE_SWITCHES):
+        if config_entry.options.get(
+            OPT_PORT_STATE_SWITCHES, DEFAULT_PORT_STATE_SWITCHES
+        ):
             for port_number in range(1, coordinator.ports_count + 1):
                 if port_number in known_ports:
                     continue
@@ -229,10 +232,9 @@ class TpLinkPortStateSwitch(TpLinkSwitch):
     async def _go_to_state(self, state: bool):
         info = self._port_info
         if not info:
-            _LOGGER.warning(
-                "Can not change switch '%s' state: port info not found", self.name
+            raise HomeAssistantError(
+                "Cannot change port state: current port information is unavailable"
             )
-            return
         await self.coordinator.set_port_state(
             info.number, state, info.speed_config, info.flow_control_config
         )
@@ -264,10 +266,9 @@ class TpLinkPortPoeStateSwitch(TpLinkSwitch):
     async def _go_to_state(self, state: bool):
         info = self._port_poe_info
         if not info:
-            _LOGGER.warning(
-                "Can not change switch '%s' PoE state: port info not found", self.name
+            raise HomeAssistantError(
+                "Cannot change PoE state: current port information is unavailable"
             )
-            return
         await self.coordinator.async_set_port_poe_settings(
             info.number, state, info.priority, info.power_limit
         )

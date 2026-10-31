@@ -1,46 +1,57 @@
 {
-    "config": {
-        "title": "TP-Link Easy Smart",
-        "step": {
-            "user": {
-                "description": "Настройка интеграции TP-Link Easy Smart.",
-                "data": {
-                    "name": "Название интеграции",
-                    "host": "Адрес маршрутизатора",
-                    "port": "Порт",
-                    "username": "Имя пользователя",
-                    "password": "Пароль",
-                    "ssl": "Использовать SSL",
-                    "verify_ssl": "Проверять сертификат"
-                }
-            }
-        },
-        "error": {
-            "name_exists": "Имя уже используется.",
-            "auth_general": "Не удалось выполнить аутентификацию.",
-            "auth_invalid_credentials": "Неверное имя пользователя или пароль.",
-            "auth_user_blocked": "Вход для данного пользователя запрещен.",
-            "auth_too_many_users": "Слишком много активных пользователей.",
-            "auth_session_timeout": "Таймаут сессии истек."
+  "config": {
+    "title": "TP-Link Easy Smart",
+    "step": {
+      "user": {
+        "description": "Настройка интеграции TP-Link Easy Smart.",
+        "data": {
+          "name": "Название интеграции",
+          "host": "Адрес маршрутизатора",
+          "port": "Порт",
+          "username": "Имя пользователя",
+          "password": "Пароль",
+          "ssl": "Использовать SSL",
+          "verify_ssl": "Проверять сертификат"
         }
+      },
+      "reauth_confirm": {
+        "title": "Update switch credentials",
+        "description": "Enter the current switch login. Existing entities will be preserved.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
     },
-    "options": {
-        "step": {
-            "basic_options": {
-                "data": {
-                    "scan_interval": "Период обновления"
-                },
-                "title": "Настройка интеграции TP-Link Easy Smart (1\/2)",
-                "description": "Базовые настройки"
-            },
-            "features_select": {
-                "data": {
-                    "port_state_switches": "Выключатели портов",
-                    "poe_state_switches": "Выключатели PoE портов"
-                },
-                "title": "Настройка интеграции TP-Link Easy Smart (2\/2)",
-                "description": "Элементы управления"
-            }
-        }
+    "error": {
+      "name_exists": "Имя уже используется.",
+      "auth_general": "Не удалось выполнить аутентификацию.",
+      "auth_invalid_credentials": "Неверное имя пользователя или пароль.",
+      "auth_user_blocked": "Вход для данного пользователя запрещен.",
+      "auth_too_many_users": "Слишком много активных пользователей.",
+      "auth_session_timeout": "Таймаут сессии истек."
+    },
+    "abort": {
+      "reauth_successful": "Credentials updated successfully."
     }
+  },
+  "options": {
+    "step": {
+      "basic_options": {
+        "data": {
+          "scan_interval": "Период обновления"
+        },
+        "title": "Настройка интеграции TP-Link Easy Smart (1/2)",
+        "description": "Базовые настройки"
+      },
+      "features_select": {
+        "data": {
+          "port_state_switches": "Выключатели портов",
+          "poe_state_switches": "Выключатели PoE портов"
+        },
+        "title": "Настройка интеграции TP-Link Easy Smart (2/2)",
+        "description": "Элементы управления"
+      }
+    }
+  }
 }

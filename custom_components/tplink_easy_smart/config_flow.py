@@ -16,6 +16,12 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import callback
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .client.coreapi import AuthenticationError, TpLinkWebApi
 from .const import (
@@ -66,6 +72,46 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return TpLinkControllerOptionsFlowHandler(config_entry)
 
+    async def async_step_reauth(self, entry_data):
+        """Recover credentials without deleting existing entities."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        entry = self._get_reauth_entry()
+        errors = {}
+        if user_input is not None:
+            data = {**entry.data, **user_input}
+            api = TpLinkWebApi(
+                host=data[CONF_HOST],
+                port=data[CONF_PORT],
+                use_ssl=data[CONF_SSL],
+                user=data[CONF_USERNAME],
+                password=data[CONF_PASSWORD],
+                verify_ssl=data[CONF_VERIFY_SSL],
+            )
+            try:
+                await api.authenticate()
+            except AuthenticationError as ex:
+                errors["base"] = ex.reason_code or "auth_general"
+            finally:
+                await api.disconnect()
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data_updates=user_input
+                )
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=entry.data[CONF_USERNAME]): str,
+                    vol.Required(CONF_PASSWORD): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
     async def async_step_import(self, user_input=None):
         """Occurs when a previous entry setup fails and is re-initiated."""
         return await self.async_step_user(user_input)
@@ -77,6 +123,7 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
             # Check if instance with this name already exists
             if user_input[CONF_NAME] in configured_instances(self.hass):
                 errors["base"] = "name_exists"
+                return self._show_config_form(user_input=user_input, errors=errors)
 
             # Test connection
             api = TpLinkWebApi(
@@ -130,8 +177,10 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_NAME, default=user_input[CONF_NAME]): str,
                     vol.Required(CONF_HOST, default=user_input[CONF_HOST]): str,
                     vol.Required(CONF_USERNAME, default=user_input[CONF_USERNAME]): str,
-                    vol.Required(CONF_PASSWORD, default=user_input[CONF_PASSWORD]): str,
-                    vol.Required(CONF_PORT, default=user_input[CONF_PORT]): int,
+                    vol.Required(
+                        CONF_PASSWORD, default=user_input[CONF_PASSWORD]
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                    vol.Required(CONF_PORT, default=user_input[CONF_PORT]): cv.port,
                     vol.Required(CONF_SSL, default=user_input[CONF_SSL]): bool,
                     vol.Required(
                         CONF_VERIFY_SSL, default=user_input[CONF_VERIFY_SSL]
@@ -174,7 +223,7 @@ class TpLinkControllerOptionsFlowHandler(OptionsFlow):
                                 CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                             ),
                         ),
-                    ): int,
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1)),
                 }
             ),
         )
