@@ -1,3 +1,15 @@
+## 0.4.1
+
+- Invalidates cached port statistics, global PoE readings and per-port PoE readings when capability re-detection reports the feature unavailable. Existing entities stop presenting the old readings as current; they recover when the feature returns.
+- Propagates authentication failures from every port/statistics/PoE read helper to the coordinator, even when the initial device-info read succeeded. Rejected credentials now trigger Home Assistant reauthentication during that refresh; transient authentication failures remain retryable.
+- Distinguishes successful global/per-port PoE commands from failed readbacks. Actions report the refresh failure, invalidate affected cached readings and notify entities; normal polling retries the reads. Empty responses and unavailable capabilities also count as failed action readbacks.
+- Preserves original command errors when the write itself fails and avoids reporting those as successful changes.
+- Adds 25 regression cases for capability loss/recovery, authentication failures at each read stage, and global/per-port action readback failures. All 143 tests pass locally under HA 2026.10.4.
+
+Requires Home Assistant 2026.10.4 or newer. Validation uses the real HA runtime and a local simulated switch; no additional physical-switch tests were performed.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.0...v0.4.1
+
 ## 0.4.0
 
 Requires **Home Assistant 2026.10.4 or newer** and its supported Python runtime.

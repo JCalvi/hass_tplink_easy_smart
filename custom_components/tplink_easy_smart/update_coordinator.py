@@ -155,7 +155,15 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def is_feature_available(self, feature: str) -> bool:
         """Return true if specified feature is known and available."""
-        return await self._api.is_feature_available(feature)
+        available = await self._api.is_feature_available(feature)
+        # A probe checks both capabilities, even when the caller requested only
+        # one. Invalidate all lost capabilities before entities are notified.
+        if not self._api.is_feature_available_cached(FEATURE_STATS):
+            self._port_statistics = []
+        if not self._api.is_feature_available_cached(FEATURE_POE):
+            self._poe_state = None
+            self._port_poe_states = []
+        return available
 
     async def async_update(self) -> None:
         """Asynchronous update of all data."""
@@ -190,48 +198,72 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         """Update port states."""
         try:
             self._port_states = await self._api.get_port_states()
+        except AuthenticationError:
+            self._port_states = []
+            raise
         except Exception as ex:
             _LOGGER.warning("Can not get port states: %s", repr(ex))
             self._port_states = []
 
     async def _update_port_statistics(self, *, raise_on_error: bool = False):
-        """Update port statistis."""
-        if not await self.is_feature_available(FEATURE_STATS):
-            return
-
+        """Refresh counters and invalidate the cache whenever they are unavailable."""
         try:
+            if not await self.is_feature_available(FEATURE_STATS):
+                self._port_statistics = []
+                if raise_on_error:
+                    raise ValueError("Port statistics capability is unavailable")
+                return
             self._port_statistics = await self._api.get_port_statistics()
             if raise_on_error and not self._port_statistics:
                 raise ValueError("No port statistics returned by the switch")
-        except Exception as ex:
-            _LOGGER.warning("Can not get port statistics: %s", repr(ex))
+        except AuthenticationError:
             self._port_statistics = []
+            raise
+        except Exception as ex:
+            self._port_statistics = []
+            _LOGGER.warning("Cannot get port statistics: %s", repr(ex))
             if raise_on_error:
                 raise
 
-    async def _update_poe_state(self):
-        """Update the switch PoE state."""
-
-        if not await self.is_feature_available(FEATURE_POE):
-            return
-
+    async def _update_poe_state(self, *, raise_on_error: bool = False):
+        """Refresh global PoE readings, allowing actions to report readback failures."""
         try:
+            if not await self.is_feature_available(FEATURE_POE):
+                self._poe_state = None
+                if raise_on_error:
+                    raise ValueError("PoE capability is unavailable")
+                return
             self._poe_state = await self._api.get_poe_state()
-        except Exception as ex:
-            _LOGGER.warning("Can not get poe state: %s", repr(ex))
+            if raise_on_error and self._poe_state is None:
+                raise ValueError("No PoE information returned by the switch")
+        except AuthenticationError:
             self._poe_state = None
-
-    async def _update_port_poe_states(self):
-        """Update port PoE states."""
-
-        if not await self.is_feature_available(FEATURE_POE):
-            return
-
-        try:
-            self._port_poe_states = await self._api.get_port_poe_states()
+            raise
         except Exception as ex:
-            _LOGGER.warning("Can not get port poe states: %s", repr(ex))
+            self._poe_state = None
+            _LOGGER.warning("Cannot get PoE state: %s", repr(ex))
+            if raise_on_error:
+                raise
+
+    async def _update_port_poe_states(self, *, raise_on_error: bool = False):
+        """Refresh per-port PoE readings and remove stale data on feature loss."""
+        try:
+            if not await self.is_feature_available(FEATURE_POE):
+                self._port_poe_states = []
+                if raise_on_error:
+                    raise ValueError("PoE capability is unavailable")
+                return
+            self._port_poe_states = await self._api.get_port_poe_states()
+            if raise_on_error and not self._port_poe_states:
+                raise ValueError("No PoE port information returned by the switch")
+        except AuthenticationError:
             self._port_poe_states = []
+            raise
+        except Exception as ex:
+            self._port_poe_states = []
+            _LOGGER.warning("Cannot get PoE port states: %s", repr(ex))
+            if raise_on_error:
+                raise
 
     def get_device_info(self) -> DeviceInfo | None:
         """Return the DeviceInfo."""
@@ -283,8 +315,15 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_poe_limit(self, limit: float) -> None:
         """Set general PoE limit."""
         await self._api.set_poe_limit(limit)
-        await self._update_poe_state()
-        self.async_update_listeners()
+        try:
+            await self._update_poe_state(raise_on_error=True)
+        except Exception as ex:
+            raise HomeAssistantError(
+                "The PoE power limit command succeeded, but refreshing the PoE "
+                "readings failed. They will be retried at the next scheduled update."
+            ) from ex
+        finally:
+            self.async_update_listeners()
 
     async def async_set_port_poe_settings(
         self,
@@ -297,5 +336,12 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         await self._api.set_port_poe_settings(
             port_number, enabled, priority, power_limit
         )
-        await self._update_port_poe_states()
-        self.async_update_listeners()
+        try:
+            await self._update_port_poe_states(raise_on_error=True)
+        except Exception as ex:
+            raise HomeAssistantError(
+                "The port PoE settings command succeeded, but refreshing the port "
+                "readings failed. They will be retried at the next scheduled update."
+            ) from ex
+        finally:
+            self.async_update_listeners()
