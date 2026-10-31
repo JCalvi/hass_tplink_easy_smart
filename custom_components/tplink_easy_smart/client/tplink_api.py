@@ -194,11 +194,11 @@ class TpLinkApi:
         if not max_port_num:
             return result
 
-        pkts = all_info.get("pkts")
-        enabled_flags = all_info.get("state")
+        pkts = all_info.get("pkts") or []
+        enabled_flags = all_info.get("state") or []
         k = 0
         for number in range(1, max_port_num + 1):
-            if k + 3 > len(pkts):
+            if k + 4 > len(pkts) or number > len(enabled_flags):
                 break
             state = PortStatistics(
                 number=number,

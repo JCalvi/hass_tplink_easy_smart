@@ -47,13 +47,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: Release ${{ steps.get_version.outputs.tag }}
-          body: |
-            Release version ${{ steps.get_version.outputs.version }}
-            
-            ## Installation
-            1. Download `tplink_easy_smart.zip`
-            2. Extract to your Home Assistant config directory
-            3. Restart Home Assistant
+          body_path: RELEASE_NOTES.md
           files: |
             tplink_easy_smart.zip
           draft: false

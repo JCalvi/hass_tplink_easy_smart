@@ -178,6 +178,12 @@ class TpLinkPortStateBinarySensor(TpLinkBinarySensor):
 
     @callback
     def _handle_coordinator_update(self) -> None:
+        # Remove old counters before applying the latest statistics snapshot.
+        for key in (
+            "tx_good_packets", "rx_good_packets", "tx_bad_packets", "rx_bad_packets"
+        ):
+            self._attr_extra_state_attributes.pop(key, None)
+
         port_info = self.coordinator.get_port_state(self._port_number)
 
         if port_info:
