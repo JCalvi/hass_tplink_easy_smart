@@ -1,3 +1,14 @@
+## 0.3.8
+
+- Fixed failed integration unloads decrementing the active service count and potentially removing services still in use. Service cleanup now runs only after all platforms unload successfully.
+- Removed the duplicate asynchronous disconnect callback; the API connection is closed once in the awaited successful-unload path.
+- The Clear port statistics button now reports when clearing succeeds but refreshing the counters fails, including empty responses. Cached statistics are invalidated and entities are notified, so old counters are removed. Normal polling retries the read.
+- A failed clear request still reports its original failure and is not described as a successful reset.
+
+Validation: focused regression checks for failed/successful unloads, service counts, clear failures, refresh failures, empty responses, and recovery; Python compilation. No additional physical-switch testing.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.3.7...v0.3.8
+
 ## 0.3.7
 
 - Fixed the general PoE power-limit action reporting ServiceNotFound after successfully executing the command.

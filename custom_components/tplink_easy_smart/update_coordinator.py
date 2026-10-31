@@ -14,6 +14,7 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -159,16 +160,20 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Can not get port states: %s", repr(ex))
             self._port_states = []
 
-    async def _update_port_statistics(self):
+    async def _update_port_statistics(self, *, raise_on_error: bool = False):
         """Update port statistis."""
         if not await self.is_feature_available(FEATURE_STATS):
             return
 
         try:
             self._port_statistics = await self._api.get_port_statistics()
+            if raise_on_error and not self._port_statistics:
+                raise ValueError("No port statistics returned by the switch")
         except Exception as ex:
             _LOGGER.warning("Can not get port statistics: %s", repr(ex))
             self._port_statistics = []
+            if raise_on_error:
+                raise
 
     async def _update_poe_state(self):
         """Update the switch PoE state."""
@@ -231,8 +236,15 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_clear_port_statistics(self) -> None:
         """Clear all port packet counters and refresh their values."""
         await self._api.clear_port_statistics()
-        await self._update_port_statistics()
-        self.async_update_listeners()
+        try:
+            await self._update_port_statistics(raise_on_error=True)
+        except Exception as ex:
+            raise HomeAssistantError(
+                "Port statistics were cleared, but refreshing the counters failed. "
+                "They will be retried at the next scheduled update."
+            ) from ex
+        finally:
+            self.async_update_listeners()
 
     async def async_set_poe_limit(self, limit: float) -> None:
         """Set general PoE limit."""
