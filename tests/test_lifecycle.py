@@ -57,6 +57,17 @@ async def test_full_homeassistant_setup_actions_and_unload(hass, switch_server):
         blocking=True,
     )
     assert state["writes"][-1]["name_powerlimit"] == "40.0"
+    port_switch = next(e for e in entities if "_port_1_enabled_" in e.unique_id)
+    poe_switch = next(e for e in entities if "_port_1_poe_enabled_" in e.unique_id)
+    for target, key in ((port_switch, "enabled"), (poe_switch, "poe_enabled")):
+        for action, expected in (("turn_off", 0), ("turn_on", 1)):
+            await hass.services.async_call(
+                "switch", action, {"entity_id": target.entity_id}, blocking=True
+            )
+            assert state[key][0] == expected
+            assert hass.states.get(target.entity_id).state == (
+                "on" if expected else "off"
+            )
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
     assert not hass.services.has_service(DOMAIN, "set_general_poe_limit")

@@ -38,6 +38,8 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_PORT_STATE_SWITCHES,
     DEFAULT_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
+    MAX_SCAN_INTERVAL,
     DEFAULT_SSL,
     DEFAULT_USER,
     DEFAULT_VERIFY_SSL,
@@ -52,18 +54,24 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _positive_interval(value):
-    """Accept whole seconds without truncating floats or interpreting booleans."""
+    """Accept 1–86400 whole seconds, without unbounded integer conversion."""
+    message = "Update interval must be a whole number between 1 and 86400 seconds"
     if isinstance(value, bool):
-        raise vol.Invalid("Update interval must be a positive whole number of seconds")
+        raise vol.Invalid(message)
     if isinstance(value, str):
         value = value.strip()
         if not value.isascii() or not value.isdecimal():
-            raise vol.Invalid(
-                "Update interval must be a positive whole number of seconds"
-            )
-        value = int(value)
-    if not isinstance(value, int) or value < 1:
-        raise vol.Invalid("Update interval must be a positive whole number of seconds")
+            raise vol.Invalid(message)
+        digits = value.lstrip("0") or "0"
+        limit = str(MAX_SCAN_INTERVAL)
+        if len(digits) > len(limit) or (len(digits) == len(limit) and digits > limit):
+            raise vol.Invalid(message)
+        value = int(digits)
+    if (
+        not isinstance(value, int)
+        or not MIN_SCAN_INTERVAL <= value <= MAX_SCAN_INTERVAL
+    ):
+        raise vol.Invalid(message)
     return value
 
 
@@ -87,7 +95,12 @@ class _IntervalSelector(NumberSelector):
 
     def __init__(self):
         super().__init__(
-            NumberSelectorConfig(min=1, step=1, mode=NumberSelectorMode.BOX)
+            NumberSelectorConfig(
+                min=MIN_SCAN_INTERVAL,
+                max=MAX_SCAN_INTERVAL,
+                step=1,
+                mode=NumberSelectorMode.BOX,
+            )
         )
 
     def __call__(self, value):
@@ -311,18 +324,25 @@ class TpLinkControllerOptionsFlowHandler(OptionsFlow):
             self.options.update(user_input)
             return await self.async_step_features_select()
 
+        try:
+            current_interval = _positive_interval(
+                self.config_entry.options.get(
+                    CONF_SCAN_INTERVAL,
+                    self.config_entry.data.get(
+                        CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                    ),
+                )
+            )
+        except vol.Invalid:
+            current_interval = DEFAULT_SCAN_INTERVAL
+
         return self.async_show_form(
             step_id="basic_options",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_SCAN_INTERVAL,
-                        default=self.config_entry.options.get(
-                            CONF_SCAN_INTERVAL,
-                            self.config_entry.data.get(
-                                CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                            ),
-                        ),
+                        default=current_interval,
                     ): _IntervalSelector(),
                 }
             ),

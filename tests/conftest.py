@@ -57,6 +57,9 @@ async def switch_server():
         "enabled": [1, 0],
         "poe_enabled": [1, 0],
         "poe_status": [2, 0],
+        "poe_priority": [0, 1],
+        "poe_limit": [330, 40],
+        "global_limit": 600,
         "packets": [100, 0, 200, 0, 20, 1, 30, 2],
         "status": {},
         "clears": 0,
@@ -129,8 +132,8 @@ async def switch_server():
                 text=page(
                     portConfig={
                         "state": state["poe_enabled"],
-                        "priority": [0, 1],
-                        "powerlimit": [330, 40],
+                        "priority": state["poe_priority"],
+                        "powerlimit": state["poe_limit"],
                         "power": [10, 0],
                         "current": [20, 0],
                         "voltage": [500, 0],
@@ -139,7 +142,7 @@ async def switch_server():
                     },
                     poe_port_num=2,
                     globalConfig={
-                        "system_power_limit": 600,
+                        "system_power_limit": state["global_limit"],
                         "system_power_remain": 590,
                         "system_power_limit_min": 10,
                         "system_power_limit_max": 650,
@@ -157,7 +160,23 @@ async def switch_server():
             )
             return web.Response(text="<html>OK</html>")
         if path in ("poe_global_config.cgi", "poe_port_config.cgi"):
-            state["writes"].append(dict(await request.post()))
+            data = dict(await request.post())
+            state["writes"].append(data)
+            if path == "poe_global_config.cgi":
+                state["global_limit"] = float(data["name_powerlimit"]) * 10
+            else:
+                for index in range(2):
+                    if data.get(f"sel_{index + 1}"):
+                        enabled = int(data["name_pstate"]) == 2
+                        state["poe_enabled"][index] = int(enabled)
+                        state["poe_status"][index] = 2 if enabled else 0
+                        state["poe_priority"][index] = int(data["name_ppriority"]) - 1
+                        setting = int(data["name_ppowerlimit"])
+                        state["poe_limit"][index] = (
+                            float(data["name_ppowerlimit2"]) * 10
+                            if setting == 6
+                            else {1: 330, 2: 40, 3: 70, 4: 154, 5: 300}[setting]
+                        )
             return web.Response(text="<html>OK</html>")
         return web.Response(status=404, text="unsupported")
 

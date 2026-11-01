@@ -1,3 +1,29 @@
+## 0.4.3
+
+### Lifecycle and input fixes
+
+- Closes the owned HTTP session on Home Assistant shutdown, as well as explicit unload and failed setup. Removes shutdown hooks on cleanup and stops coordinator polling.
+- Serializes complete polls and control actions with teardown. An in-flight poll cannot reopen a session after shutdown closes it; queued/new controls are rejected once shutdown begins. Cleanup is idempotent.
+- Bounds polling intervals to **1–86400 whole seconds** in both the UI and runtime. Oversized integers/strings cannot overflow setup. Invalid saved values use the 30-second default, including in the options form so settings remain recoverable.
+
+### Final audit fixes
+
+- Preserves exact integer counter values, including 64-bit values, without a float round-trip.
+- Ignores commented-out variables and variable-like text in script strings. Comments inside values cannot break extraction; literal string content is preserved.
+- Invalidates affected readings when a write response is lost or a write/readback is cancelled. Original errors/cancellation still propagate; uncertain writes are never retried automatically.
+- Invalidates caches when a control action's capability preflight discovers feature loss, as well as during polling.
+- Rejects malformed optional device metadata instead of passing invalid types to Home Assistant.
+
+### Validation
+
+- 296 tests cover the real Home Assistant 2026.10.4 runtime and a local simulated switch, including actual entity services, supported PoE priorities/limits/statuses, session handling, malformed data, permissions, migration, recovery, cancellation and shutdown races.
+- GitHub releases require the test suite and at least 90% combined statement/branch coverage to pass. Local coverage is approximately 92%; compilation and targeted static checks also pass.
+- See [the final audit record](docs/audit-0.4.3.md). No new physical-switch tests were performed; previously confirmed hardware/firmware results and contributor credits remain in the README.
+
+Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.2...v0.4.3
+
 ## 0.4.2
 
 - Rejects boolean and fractional polling intervals instead of silently converting them to one second. Positive integer values and integer strings remain supported; the configuration UI keeps a serializable numeric selector.

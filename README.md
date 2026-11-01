@@ -49,7 +49,7 @@ Copy `tplink_easy_smart` folder from [latest release](https://github.com/jcalvi/
 
 ## Configuration
 
-Enter a hostname or IP address without a scheme or port; the port has its own field. Raw and bracketed IPv6 addresses are accepted. Update intervals must be positive whole seconds. Duplicate switch setup is checked by endpoint and MAC address.
+Enter a hostname or IP address without a scheme or port; the port has its own field. Raw and bracketed IPv6 addresses are accepted. Update intervals must be whole seconds from 1 to 86400 (one day); the default is 30 seconds. Invalid stored intervals fall back to that default. Duplicate switch setup is checked by endpoint and MAC address.
 
 Configuration > [Integrations](https://my.home-assistant.io/redirect/integrations/) > Add Integration > [TP-Link Easy Smart](https://my.home-assistant.io/redirect/config_flow_start/?domain=tplink_easy_smart)
 
@@ -121,3 +121,5 @@ Releases run the tests before creating the tag and ZIP. Release notes are in [RE
 ### Action permissions
 
 Internal automations retain normal Home Assistant behavior. Administrators can manage all switches. For a restricted user, a port PoE action requires control permission on that port's registered PoE switch (or PoE state entity if controls are disabled). A global PoE limit change requires control permission on all registered entities of the target switch. Permission to control another switch does not grant access to the target.
+
+The final 0.4.3 audit scope, regression matrix and remaining hardware-validation limits are recorded in [docs/audit-0.4.3.md](docs/audit-0.4.3.md).

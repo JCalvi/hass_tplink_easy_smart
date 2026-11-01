@@ -52,11 +52,19 @@ _POE_POWER_LIMITS_SET_MAP: dict[PoePowerLimit, Tuple[int, str | None]] = {
 
 
 def _integer(value, label, minimum=0):
+    """Validate integral data without rounding exact Python/JSON integers."""
     if isinstance(value, bool):
         raise ValueError(f"Invalid {label}")
     try:
-        number = int(value)
-        if float(value) != number or number < minimum:
+        if isinstance(value, int):
+            number = value
+        elif isinstance(value, str) and re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+            number = int(value.strip())
+        elif isinstance(value, float) and math.isfinite(value) and value.is_integer():
+            number = int(value)
+        else:
+            raise ValueError(f"Invalid {label}")
+        if number < minimum:
             raise ValueError(f"Invalid {label}")
     except (TypeError, ValueError, OverflowError) as ex:
         raise ValueError(f"Invalid {label}") from ex
@@ -165,7 +173,11 @@ class TpLinkApi:
             if data is None:
                 return None
             array = data.get(key, [])
-            if not isinstance(array, list) or len(array) != 1:
+            if (
+                not isinstance(array, list)
+                or len(array) != 1
+                or not isinstance(array[0], str)
+            ):
                 return None
             return array[0]
 

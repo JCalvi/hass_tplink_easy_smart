@@ -26,7 +26,7 @@ AUTH_TOO_MANY_USERS = "auth_too_many_users"
 AUTH_SESSION_TIMEOUT = "auth_session_timeout"
 _VAR_LOGON_INFO = "logonInfo"
 _ARRAY_VALUES_REGEX = r"\s*new\s*Array\s*\((?P<items>.*)\)\s*"
-_VARIABLES_REGEX = re.compile(r"\bvar\s+([a-zA-Z_$][\w$]*)\s*=\s*")
+_VARIABLES_REGEX = re.compile(r"\bvar\s+([a-zA-Z_$][\w$]*)\s*=")
 _LOGGER = logging.getLogger(__name__)
 VariableValue: TypeAlias = str | int | list[str] | dict[str, Any]
 
@@ -90,40 +90,70 @@ class _Scripts(HTMLParser):
             self._parts = None
 
 
+def _script_views(script):
+    """Mask strings for declaration search and remove comments from values."""
+    code, values = list(script), list(script)
+    quote = None
+    escaped = False
+    comment = None
+    index = 0
+    while index < len(script):
+        char = script[index]
+        pair = script[index : index + 2]
+        if comment:
+            if comment == "line" and char in "\r\n":
+                comment = None
+            elif comment == "block" and pair == "*/":
+                code[index : index + 2] = values[index : index + 2] = "  "
+                index += 2
+                comment = None
+                continue
+            else:
+                code[index] = values[index] = " " if char not in "\r\n" else char
+        elif quote:
+            code[index] = " "
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif pair in ("//", "/*"):
+            comment = "line" if pair == "//" else "block"
+            code[index : index + 2] = values[index : index + 2] = "  "
+            index += 2
+            continue
+        elif char in "\"'`":
+            quote = char
+            code[index] = " "
+        index += 1
+    return "".join(code), "".join(values)
+
+
 def _get_variables(page: str) -> dict[str, str]:
-    """Extract values without executing JavaScript or splitting quoted semicolons."""
+    """Extract literal declarations without executing JavaScript."""
     parser = _Scripts()
     parser.feed(page)
     result = {}
     for script in parser.scripts:
+        code, values = _script_views(script)
         position = 0
-        while match := _VARIABLES_REGEX.search(script, position):
+        while match := _VARIABLES_REGEX.search(code, position):
             start = match.end()
-            quote = None
-            escaped = False
             depth = 0
             end = start
-            for end in range(start, len(script)):
-                char = script[end]
-                if quote:
-                    if escaped:
-                        escaped = False
-                    elif char == "\\":
-                        escaped = True
-                    elif char == quote:
-                        quote = None
-                elif char in "\"'":
-                    quote = char
-                elif char in "([{":
+            for end in range(start, len(code)):
+                char = code[end]
+                if char in "([{":
                     depth += 1
                 elif char in ")]}":
                     depth -= 1
                 elif char == ";" and depth == 0:
                     break
             else:
-                end = len(script)
-            value = script[start:end].strip()
-            if value and quote is None and depth == 0:
+                end = len(code)
+            value = values[start:end].strip()
+            if value and depth == 0:
                 result[match.group(1)] = value
             position = max(end + 1, start + 1)
     return result
