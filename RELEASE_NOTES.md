@@ -1,3 +1,12 @@
+## 0.4.4
+
+- Credits [@vmakeev](https://github.com/vmakeev), the original author, prominently at the top of the README and in the Credits section, with links to the [upstream integration](https://github.com/vmakeev/hass_tplink_easy_smart).
+- Publishes the updated README in a versioned release so HACS displays the attribution after updating.
+
+Documentation and version update only; integration behavior is unchanged. Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.3...v0.4.4
+
 ## 0.4.3
 
 ### Lifecycle and input fixes
