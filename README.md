@@ -1,5 +1,7 @@
 # TP-Link Easy Smart switches component for Home Assistant
 
+This integration is a fork of [vmakeev/hass_tplink_easy_smart](https://github.com/vmakeev/hass_tplink_easy_smart), originally created by [@vmakeev](https://github.com/vmakeev).
+
 Home Assistant custom component for control TP-Link Easy Smart switches over LAN.
 
 **Requires Home Assistant 2026.10.4 or newer.** Version 0.4.0 is tested against HA 2026.10.4; it does not retain compatibility with older HA releases.
@@ -103,6 +105,7 @@ Clearing statistics has been tested on TL-SG105E, TL-SG108E and TL-SG108PE by [@
 
 ## Credits
 
+- [@vmakeev](https://github.com/vmakeev) created the [original integration](https://github.com/vmakeev/hass_tplink_easy_smart) from which this project was forked. Thank you for the foundation this project builds on.
 - [@bakernigel](https://github.com/bakernigel) contributed the Clear port statistics button and tested it on a TL-SG116E V2.20.
 
 ## Development and testing
