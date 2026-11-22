@@ -4,7 +4,7 @@ This integration is a fork of [vmakeev/hass_tplink_easy_smart](https://github.co
 
 Home Assistant custom component for control TP-Link Easy Smart switches over LAN.
 
-**Requires Home Assistant 2026.10.4 or newer.** Version 0.4.0 is tested against HA 2026.10.4; it does not retain compatibility with older HA releases.
+**Requires Home Assistant 2026.10.4 or newer.**
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/jcalvi/hass_tplink_easy_smart)](https://github.com/jcalvi/hass_tplink_easy_smart/blob/master/LICENSE.md)
@@ -73,6 +73,12 @@ Advanced settings include:
 ![Options 1/2](docs/images/options_1.png)
 
 ![Options 2/2](docs/images/options_2.png)
+
+### Switch login after a reboot
+
+Version 0.4.5 opens the switch’s login page before submitting credentials so the HTTP client retains any session cookie issued on that first request. This addresses setup or refresh failures reported as `Can not authenticate` or `Switch session remains unauthorized` when the switch expects that cookie.
+
+The cookie-first login sequence was verified from Home Assistant OS on a TL-SG116E reporting hardware V2.20 and firmware `1.0.0 Build 20230505 Rel.70817`. The integration’s initial login and session recovery are covered by automated tests against a simulated switch.
 
 ## Sensors
 

@@ -65,6 +65,7 @@ async def switch_server():
         "clears": 0,
         "writes": [],
         "login_code": "0",
+        "require_login_page_cookie": False,
     }
 
     def page(**variables):
@@ -80,6 +81,10 @@ async def switch_server():
 
     async def handle(request):
         path = request.path[1:]
+        if not path and state["require_login_page_cookie"]:
+            response = web.Response(text="Login page")
+            response.set_cookie("H_P_SSID", "pending")
+            return response
         if path == "logon.cgi":
             state["logins"] += 1
             response = web.Response(
@@ -87,7 +92,11 @@ async def switch_server():
                 + state["login_code"]
                 + '");</script>'
             )
-            response.set_cookie("session", "valid")
+            if (
+                not state["require_login_page_cookie"]
+                or request.cookies.get("H_P_SSID") == "pending"
+            ):
+                response.set_cookie("session", "valid")
             return response
         if path in state["status"]:
             return web.Response(status=state["status"][path], text="server error")

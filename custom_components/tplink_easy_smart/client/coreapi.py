@@ -283,6 +283,9 @@ class TpLinkWebApi:
         self._is_initialized = False
         self._refresh_session()
         try:
+            # Some switches issue the session cookie on the initial page request.
+            login_page = await self._get_raw("")
+            login_page.release()
             response = await self._post_raw(
                 "logon.cgi",
                 {"username": self._user, "password": self._password, "logon": "Login"},

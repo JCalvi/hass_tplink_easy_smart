@@ -69,6 +69,18 @@ async def test_http_data_authentication_and_reset(switch_server):
     assert all(s.rx_good_pkts == 0 for s in await api.get_port_statistics())
 
 
+async def test_login_gets_session_cookie_before_posting_credentials(switch_server):
+    api, state, _ = switch_server
+    state["require_login_page_cookie"] = True
+
+    assert (await api.get_device_info()).mac == "aa:bb:cc:dd:ee:ff"
+    assert state["logins"] == 1
+
+    state["expired"] = True
+    assert (await api.get_device_info()).mac == "aa:bb:cc:dd:ee:ff"
+    assert state["logins"] == 2
+
+
 @pytest.mark.parametrize("status", [404, 500, 502])
 async def test_non_auth_http_error_does_not_relogin(switch_server, status):
     api, state, _ = switch_server

@@ -1,3 +1,13 @@
+## 0.4.5
+
+- Open the switch’s login page before submitting credentials so switches that issue a session cookie on the first request can authorize subsequent requests. The same sequence runs when a session expires and the integration signs in again.
+- Add transport regression coverage for initial login and session recovery when the switch requires the initial cookie.
+- Document the login issue and the successful manual verification from HAOS on a TL-SG116E reporting V2.20 with firmware `1.0.0 Build 20230505 Rel.70817`.
+
+Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.4...v0.4.5
+
 ## 0.4.4
 
 - Credits [@vmakeev](https://github.com/vmakeev), the original author, prominently at the top of the README and in the Credits section, with links to the [upstream integration](https://github.com/vmakeev/hass_tplink_easy_smart).
