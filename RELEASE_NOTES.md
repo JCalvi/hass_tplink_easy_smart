@@ -1,3 +1,12 @@
+## 0.5.0
+
+- Make every add-device field editable from **Reconfigure**: integration name, host, port, username, password, SSL, and certificate verification.
+- Leave the password blank to retain it. The form checks the proposed connection settings and preserves the existing entry and entity IDs.
+
+Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.6...v0.5.0
+
 ## 0.4.6
 
 - Add a **Reconfigure** action to change an existing switch’s IP address or hostname in Home Assistant. It verifies that the switch can be reached, checks its MAC address if already known, and preserves the existing entry, entities, and options.

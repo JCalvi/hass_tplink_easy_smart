@@ -196,3 +196,90 @@ async def test_reconfigure_switch_address(hass, scenario, error):
         assert result["reason"] == "reconfigure_successful"
         assert dict(entry.data) == {**data, "host": new_host, CONF_SWITCH_MAC: mac}
         reload_entry.assert_awaited_once_with(entry.entry_id)
+
+
+@pytest.mark.parametrize("new_password", [None, "", "replacement-secret"])
+async def test_reconfigure_all_setup_fields(hass, new_password):
+    mac = "aa:bb:cc:dd:ee:ff"
+    entry = make_entry(
+        data={**make_entry().data, CONF_SWITCH_MAC: mac},
+        unique_id="stable-id",
+        options={"scan_interval": 45},
+    )
+    hass.config_entries._entries[entry.entry_id] = entry
+    flow = TpLinkControllerConfigFlow()
+    flow.hass = hass
+    flow.context = {"source": "reconfigure", "entry_id": entry.entry_id}
+    flow.handler = DOMAIN
+    result = await flow.async_step_reconfigure()
+    schema = result["data_schema"]
+    setup_fields = {"name", "host", "port", "username", "password", "ssl", "verify_ssl"}
+    assert {str(key) for key in schema.schema} == setup_fields
+    assert schema({}) == {key: entry.data[key] for key in setup_fields - {"password"}}
+
+    changes = {
+        "name": "Renamed Switch",
+        "host": "switch.example",
+        "port": 8443,
+        "username": "operator",
+        "ssl": True,
+        "verify_ssl": True,
+    }
+    if new_password is not None:
+        changes["password"] = new_password
+    password = new_password or entry.data["password"]
+    client = Mock(
+        get_device_info=AsyncMock(return_value=SimpleNamespace(mac=mac)),
+        disconnect=AsyncMock(),
+    )
+    with (
+        patch(
+            "custom_components.tplink_easy_smart.config_flow.TpLinkApi",
+            return_value=client,
+        ) as api,
+        patch.object(
+            hass.config_entries, "async_reload", AsyncMock(return_value=True)
+        ) as reload_entry,
+    ):
+        client.get_device_info.side_effect = AuthenticationError(
+            "bad", "auth_invalid_credentials"
+        )
+        result = await flow.async_step_reconfigure(schema(changes))
+        assert result["errors"] == {"base": "auth_invalid_credentials"}
+        assert "password" not in result["data_schema"]({})
+        assert result["data_schema"]({})["host"] == changes["host"]
+        assert entry.title == "Test Switch"
+        assert entry.data["host"] == "127.0.0.1"
+        reload_entry.assert_not_awaited()
+
+        client.get_device_info.side_effect = None
+        result = await flow.async_step_reconfigure(schema(changes))
+        await hass.async_block_till_done()
+
+    api.assert_called_with(
+        host="switch.example", port=8443, use_ssl=True,
+        user="operator", password=password, verify_ssl=True,
+    )
+    assert result["reason"] == "reconfigure_successful"
+    assert dict(entry.data) == {**changes, "password": password, CONF_SWITCH_MAC: mac}
+    assert entry.title == "Renamed Switch"
+    assert entry.unique_id == "stable-id"
+    assert entry.options["scan_interval"] == 45
+    assert hass.config_entries.async_get_entry(entry.entry_id) is entry
+    reload_entry.assert_awaited_once_with(entry.entry_id)
+
+
+async def test_reconfigure_rejects_duplicate_name(hass):
+    entry = make_entry()
+    other = make_entry(data={**entry.data, "name": "Other"})
+    for configured in (entry, other):
+        hass.config_entries._entries[configured.entry_id] = configured
+    flow = TpLinkControllerConfigFlow()
+    flow.hass = hass
+    flow.context = {"source": "reconfigure", "entry_id": entry.entry_id}
+    flow.handler = DOMAIN
+    with patch("custom_components.tplink_easy_smart.config_flow.TpLinkApi") as api:
+        result = await flow.async_step_reconfigure({"name": "Other"})
+    assert result["errors"] == {"base": "name_exists"}
+    assert entry.data["name"] == "Test"
+    api.assert_not_called()

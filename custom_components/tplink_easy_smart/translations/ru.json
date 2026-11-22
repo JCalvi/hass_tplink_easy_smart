@@ -15,10 +15,19 @@
         }
       },
       "reconfigure": {
-        "title": "Изменение адреса коммутатора",
-        "description": "Введите новый IP-адрес или имя хоста коммутатора.",
+        "title": "Настройка коммутатора",
+        "description": "Измените параметры этого коммутатора.",
         "data": {
-          "host": "Адрес"
+          "name": "Название интеграции",
+          "host": "Адрес маршрутизатора",
+          "port": "Порт",
+          "username": "Имя пользователя",
+          "password": "Пароль",
+          "ssl": "Использовать SSL",
+          "verify_ssl": "Проверять сертификат"
+        },
+        "data_description": {
+          "password": "Оставьте поле пустым, чтобы сохранить текущий пароль."
         }
       },
       "reauth_confirm": {
@@ -42,7 +51,7 @@
       "auth_session_timeout": "Таймаут сессии истек."
     },
     "abort": {
-      "reconfigure_successful": "Адрес коммутатора обновлён.",
+      "reconfigure_successful": "Параметры коммутатора обновлены.",
       "reauth_successful": "Credentials updated successfully.",
       "already_configured": "Этот коммутатор уже настроен."
     }

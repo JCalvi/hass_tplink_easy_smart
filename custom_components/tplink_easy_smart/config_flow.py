@@ -173,15 +173,25 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
         return TpLinkControllerOptionsFlowHandler(config_entry)
 
     async def async_step_reconfigure(self, user_input=None):
-        """Change the address of an existing switch."""
+        """Change the connection settings of an existing switch."""
         entry = self._get_reconfigure_entry()
-        host = entry.data[CONF_HOST]
+        data = dict(entry.data)
         errors = {}
         if user_input is not None:
-            host = user_input[CONF_HOST]
-            data = {**entry.data, CONF_HOST: host}
+            changes = dict(user_input)
+            if not changes.get(CONF_PASSWORD):
+                changes.pop(CONF_PASSWORD, None)
+            data.update(changes)
+            if (
+                data[CONF_NAME] != entry.data[CONF_NAME]
+                and data[CONF_NAME] in configured_instances(self.hass)
+            ):
+                return self._show_config_form(
+                    data, errors={"base": "name_exists"}, step_id="reconfigure"
+                )
+
             api = TpLinkApi(
-                host=host,
+                host=data[CONF_HOST],
                 port=data[CONF_PORT],
                 use_ssl=data[CONF_SSL],
                 user=data[CONF_USERNAME],
@@ -213,16 +223,12 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "address_in_use"
                 else:
                     return self.async_update_reload_and_abort(
-                        entry, data_updates={CONF_HOST: host, CONF_SWITCH_MAC: mac}
+                        entry,
+                        title=data[CONF_NAME],
+                        data_updates={**changes, CONF_SWITCH_MAC: mac},
                     )
 
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_HOST, default=host): _HostSelector()}
-            ),
-            errors=errors,
-        )
+        return self._show_config_form(data, errors=errors, step_id="reconfigure")
 
     async def async_step_reauth(self, entry_data):
         """Recover credentials without deleting existing entities."""
@@ -331,10 +337,15 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
     # ---------------------------
     #   _show_config_form
     # ---------------------------
-    def _show_config_form(self, user_input, errors=None):
-        """Show the configuration form to edit data."""
+    def _show_config_form(self, user_input, errors=None, *, step_id="user"):
+        """Show the shared setup and reconfiguration fields."""
+        password_key = (
+            vol.Optional(CONF_PASSWORD)
+            if step_id == "reconfigure"
+            else vol.Required(CONF_PASSWORD, default=user_input[CONF_PASSWORD])
+        )
         return self.async_show_form(
-            step_id="user",
+            step_id=step_id,
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME, default=user_input[CONF_NAME]): str,
@@ -342,9 +353,9 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_HOST, default=user_input[CONF_HOST]
                     ): _HostSelector(),
                     vol.Required(CONF_USERNAME, default=user_input[CONF_USERNAME]): str,
-                    vol.Required(
-                        CONF_PASSWORD, default=user_input[CONF_PASSWORD]
-                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                    password_key: TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
                     vol.Required(CONF_PORT, default=user_input[CONF_PORT]): cv.port,
                     vol.Required(CONF_SSL, default=user_input[CONF_SSL]): bool,
                     vol.Required(

@@ -15,10 +15,19 @@
         }
       },
       "reconfigure": {
-        "title": "Change switch address",
-        "description": "Enter the new IP address or hostname for this switch.",
+        "title": "Reconfigure switch",
+        "description": "Update the settings for this switch.",
         "data": {
-          "host": "Host"
+          "name": "Integration name",
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password",
+          "ssl": "Use SSL",
+          "verify_ssl": "Verify SSL cert"
+        },
+        "data_description": {
+          "password": "Leave blank to keep the saved password."
         }
       },
       "reauth_confirm": {
@@ -42,7 +51,7 @@
       "auth_session_timeout": "The session timeout has expired."
     },
     "abort": {
-      "reconfigure_successful": "Switch address updated.",
+      "reconfigure_successful": "Switch settings updated.",
       "reauth_successful": "Credentials updated successfully.",
       "already_configured": "This switch is already configured."
     }
