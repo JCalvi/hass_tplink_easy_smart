@@ -14,6 +14,13 @@
           "verify_ssl": "Verify SSL cert"
         }
       },
+      "reconfigure": {
+        "title": "Change switch address",
+        "description": "Enter the new IP address or hostname for this switch.",
+        "data": {
+          "host": "Host"
+        }
+      },
       "reauth_confirm": {
         "title": "Update switch credentials",
         "description": "Enter the current switch login. Existing entities will be preserved.",
@@ -24,6 +31,9 @@
       }
     },
     "error": {
+      "cannot_connect": "Could not read switch information at this address.",
+      "wrong_switch": "The device at this address has a different MAC address.",
+      "address_in_use": "This address or switch is already assigned to another integration entry.",
       "name_exists": "The name already used.",
       "auth_general": "Can not authenticate.",
       "auth_invalid_credentials": "Invalid username or password.",
@@ -32,6 +42,7 @@
       "auth_session_timeout": "The session timeout has expired."
     },
     "abort": {
+      "reconfigure_successful": "Switch address updated.",
       "reauth_successful": "Credentials updated successfully.",
       "already_configured": "This switch is already configured."
     }

@@ -1,3 +1,12 @@
+## 0.4.6
+
+- Add a **Reconfigure** action to change an existing switch’s IP address or hostname in Home Assistant. It verifies that the switch can be reached, checks its MAC address if already known, and preserves the existing entry, entities, and options.
+- Document the address change procedure and test successful changes, connection failures, and conflicts.
+
+Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.4.5...v0.4.6
+
 ## 0.4.5
 
 - Open the switch’s login page before submitting credentials so switches that issue a session cookie on the first request can authorize subsequent requests. The same sequence runs when a session expires and the integration signs in again.

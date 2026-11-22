@@ -56,6 +56,10 @@ Enter a hostname or IP address without a scheme or port; the port has its own fi
 Configuration > [Integrations](https://my.home-assistant.io/redirect/integrations/) > Add Integration > [TP-Link Easy Smart](https://my.home-assistant.io/redirect/config_flow_start/?domain=tplink_easy_smart)
 
 
+### Change a switch address
+
+If a switch moves to a new IP address, open **Settings → Devices & services → TP-Link Easy Smart**, select **⋮ → Reconfigure** on its integration entry, and enter the new IP address or hostname. The integration checks connectivity using the saved credentials and verifies the MAC address if one is already known. It then reloads the existing entry, preserving its entities and options.
+
 ### Advanced options
 
 You can perform advanced component configuration by clicking the `CONFIGURE` button after adding it. 

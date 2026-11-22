@@ -28,7 +28,7 @@ from homeassistant.helpers.selector import (
     NumberSelectorMode,
 )
 
-from .client.coreapi import AuthenticationError, TpLinkWebApi
+from .client.coreapi import ApiCallError, AuthenticationError, TpLinkWebApi
 from .client.tplink_api import TpLinkApi
 from .const import (
     DEFAULT_HOST,
@@ -171,6 +171,58 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
         return TpLinkControllerOptionsFlowHandler(config_entry)
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Change the address of an existing switch."""
+        entry = self._get_reconfigure_entry()
+        host = entry.data[CONF_HOST]
+        errors = {}
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            data = {**entry.data, CONF_HOST: host}
+            api = TpLinkApi(
+                host=host,
+                port=data[CONF_PORT],
+                use_ssl=data[CONF_SSL],
+                user=data[CONF_USERNAME],
+                password=data[CONF_PASSWORD],
+                verify_ssl=data[CONF_VERIFY_SSL],
+            )
+            try:
+                info = await api.get_device_info()
+            except AuthenticationError as ex:
+                errors["base"] = ex.reason_code or "auth_general"
+            except (ApiCallError, ValueError, TypeError):
+                errors["base"] = "cannot_connect"
+            finally:
+                await api.disconnect()
+
+            if not errors:
+                mac = info.mac.casefold()
+                expected_mac = _entry_mac(self.hass, entry)
+                if expected_mac and mac != expected_mac:
+                    errors["base"] = "wrong_switch"
+                elif any(
+                    other.entry_id != entry.entry_id
+                    and (
+                        _same_endpoint(other.data, data)
+                        or _entry_mac(self.hass, other) == mac
+                    )
+                    for other in self.hass.config_entries.async_entries(DOMAIN)
+                ):
+                    errors["base"] = "address_in_use"
+                else:
+                    return self.async_update_reload_and_abort(
+                        entry, data_updates={CONF_HOST: host, CONF_SWITCH_MAC: mac}
+                    )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {vol.Required(CONF_HOST, default=host): _HostSelector()}
+            ),
+            errors=errors,
+        )
 
     async def async_step_reauth(self, entry_data):
         """Recover credentials without deleting existing entities."""
