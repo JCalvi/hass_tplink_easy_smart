@@ -21,6 +21,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from .client.coreapi import AuthenticationError, ApiCallError, AUTH_FAILURE_CREDENTIALS
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, format_mac
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -36,6 +37,7 @@ from .client.tplink_api import (
 )
 from .const import (
     ATTR_MANUFACTURER,
+    CONF_SWITCH_MAC,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MIN_SCAN_INTERVAL,
@@ -54,6 +56,7 @@ def _serialized_operation(method):
             if self._shutdown_requested:
                 raise HomeAssistantError("The switch integration is stopping")
             try:
+                await self._update_switch_info()
                 return await method(self, *args, **kwargs)
             finally:
                 # An action's API preflight may have re-detected capabilities.
@@ -255,7 +258,14 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _update_switch_info(self):
         """Update the switch info."""
-        self._switch_info = await self._api.get_device_info()
+        info = await self._api.get_device_info()
+        expected = self._config.data.get(CONF_SWITCH_MAC)
+        if expected and format_mac(info.mac) != format_mac(expected):
+            raise UpdateFailed(
+                f"Switch MAC mismatch at {self.cfg_host}: expected {expected}, "
+                f"received {info.mac}"
+            )
+        self._switch_info = info
 
     async def _update_port_states(self):
         """Update port states."""
@@ -338,6 +348,7 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
         result = DeviceInfo(
             configuration_url=self._api.device_url,
             identifiers={(DOMAIN, switch_info.mac)},
+            connections={(CONNECTION_NETWORK_MAC, format_mac(switch_info.mac))},
             manufacturer=ATTR_MANUFACTURER,
             name=switch_info.name,
             hw_version=switch_info.hardware,
@@ -364,10 +375,23 @@ class TpLinkDataUpdateCoordinator(DataUpdateCoordinator):
             self.async_update_listeners()
             raise
 
-        index = number - 1
-        if 0 <= index < len(self._port_states):
-            self._port_states[index].enabled = enabled
+        try:
+            self._port_states = await self._api.get_port_states()
+            port = self.get_port_state(number)
+            if port is None:
+                raise ValueError("The switch did not return the affected port")
+        except asyncio.CancelledError:
+            self._port_states = []
+            raise
+        except Exception as ex:
+            self._port_states = []
+            raise HomeAssistantError(
+                "The port command was sent, but the resulting state could not be read."
+            ) from ex
+        finally:
             self.async_update_listeners()
+        if port.enabled != enabled:
+            raise HomeAssistantError("The switch did not apply the requested port state.")
 
     @_serialized_operation
     async def async_clear_port_statistics(self) -> None:

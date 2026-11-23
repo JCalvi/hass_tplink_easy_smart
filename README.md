@@ -62,6 +62,10 @@ Open **Settings → Devices & services → TP-Link Easy Smart**, then select **�
 
 Home Assistant tests the connection and checks the switch’s MAC address if it is already known, then reloads the existing entry with its entities and options intact.
 
+If Home Assistant discovers a new DHCP address for an existing switch, **Reconfigure** pre-fills the new address. Check the suggested address and submit to verify it and save. Discoveries alone do not contact the new address or change the entry. You can still enter an address manually if Home Assistant misses the discovery.
+
+The integration checks the saved MAC address when polling and before port, counter, or PoE controls. Port enable/disable commands read back the actual port state.
+
 ### Advanced options
 
 You can perform advanced component configuration by clicking the `CONFIGURE` button after adding it. 

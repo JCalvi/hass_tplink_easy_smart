@@ -7,6 +7,7 @@ from homeassistant.const import Platform
 DOMAIN: Final = "tplink_easy_smart"
 
 DATA_KEY_COORDINATOR: Final = "coordinator"
+DATA_DHCP_SUGGESTIONS: Final = "tplink_easy_smart_dhcp_suggestions"
 DATA_KEY_SERVICES: Final = "services_count"
 CONF_SWITCH_MAC: Final = "mac_address"
 

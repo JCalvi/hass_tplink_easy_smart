@@ -2,6 +2,7 @@
   "domain": "tplink_easy_smart",
   "name": "TP-Link Easy Smart",
   "integration_type": "device",
+  "dhcp": [{"registered_devices": true}],
   "documentation": "https://github.com/jcalvi/hass_tplink_easy_smart",
   "issue_tracker": "https://github.com/jcalvi/hass_tplink_easy_smart/issues",
   "codeowners": [
@@ -11,6 +12,6 @@
   "requirements": [
     "json5==0.12.1"
   ],
-  "version": "0.5.0",
+  "version": "0.5.1",
   "config_flow": true
 }

@@ -18,6 +18,7 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.device_registry import format_mac
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -46,6 +47,7 @@ from .const import (
     DOMAIN,
     CONF_SWITCH_MAC,
     DATA_KEY_COORDINATOR,
+    DATA_DHCP_SUGGESTIONS,
     OPT_POE_STATE_SWITCHES,
     OPT_PORT_STATE_SWITCHES,
 )
@@ -135,12 +137,12 @@ def _entry_mac(hass, entry):
     """Read saved or live identity without changing legacy entry unique IDs."""
     mac = entry.data.get(CONF_SWITCH_MAC)
     if isinstance(mac, str):
-        return mac.casefold()
+        return format_mac(mac)
     coordinator = (
         hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get(DATA_KEY_COORDINATOR)
     )
     info = coordinator.get_switch_info() if coordinator else None
-    return info.mac.casefold() if info and isinstance(info.mac, str) else None
+    return format_mac(info.mac) if info and isinstance(info.mac, str) else None
 
 
 # ---------------------------
@@ -172,10 +174,29 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler."""
         return TpLinkControllerOptionsFlowHandler(config_entry)
 
+    async def async_step_dhcp(self, discovery_info):
+        """Remember a DHCP address for an already configured switch."""
+        mac = format_mac(discovery_info.macaddress)
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            if _entry_mac(self.hass, entry) == mac:
+                suggestions = self.hass.data.setdefault(DATA_DHCP_SUGGESTIONS, {})
+                if _canonical_host(entry.data[CONF_HOST]) == _canonical_host(
+                    discovery_info.ip
+                ):
+                    suggestions.pop(entry.entry_id, None)
+                else:
+                    suggestions[entry.entry_id] = discovery_info.ip
+                break
+        return self.async_abort(reason="already_configured")
+
     async def async_step_reconfigure(self, user_input=None):
         """Change the connection settings of an existing switch."""
         entry = self._get_reconfigure_entry()
         data = dict(entry.data)
+        suggestions = self.hass.data.get(DATA_DHCP_SUGGESTIONS, {})
+        suggested = suggestions.get(entry.entry_id)
+        if suggested and user_input is None:
+            data[CONF_HOST] = suggested
         errors = {}
         if user_input is not None:
             changes = dict(user_input)
@@ -187,7 +208,10 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                 and data[CONF_NAME] in configured_instances(self.hass)
             ):
                 return self._show_config_form(
-                    data, errors={"base": "name_exists"}, step_id="reconfigure"
+                    data,
+                    errors={"base": "name_exists"},
+                    step_id="reconfigure",
+                    description_placeholders={"current_host": entry.data[CONF_HOST]},
                 )
 
             api = TpLinkApi(
@@ -208,7 +232,7 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                 await api.disconnect()
 
             if not errors:
-                mac = info.mac.casefold()
+                mac = format_mac(info.mac)
                 expected_mac = _entry_mac(self.hass, entry)
                 if expected_mac and mac != expected_mac:
                     errors["base"] = "wrong_switch"
@@ -222,13 +246,19 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
                 ):
                     errors["base"] = "address_in_use"
                 else:
+                    suggestions.pop(entry.entry_id, None)
                     return self.async_update_reload_and_abort(
                         entry,
                         title=data[CONF_NAME],
                         data_updates={**changes, CONF_SWITCH_MAC: mac},
                     )
 
-        return self._show_config_form(data, errors=errors, step_id="reconfigure")
+        return self._show_config_form(
+            data,
+            errors=errors,
+            step_id="reconfigure",
+            description_placeholders={"current_host": entry.data[CONF_HOST]},
+        )
 
     async def async_step_reauth(self, entry_data):
         """Recover credentials without deleting existing entities."""
@@ -337,7 +367,9 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
     # ---------------------------
     #   _show_config_form
     # ---------------------------
-    def _show_config_form(self, user_input, errors=None, *, step_id="user"):
+    def _show_config_form(
+        self, user_input, errors=None, *, step_id="user", description_placeholders=None
+    ):
         """Show the shared setup and reconfiguration fields."""
         password_key = (
             vol.Optional(CONF_PASSWORD)
@@ -346,6 +378,7 @@ class TpLinkControllerConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(
             step_id=step_id,
+            description_placeholders=description_placeholders,
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_NAME, default=user_input[CONF_NAME]): str,

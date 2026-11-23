@@ -227,3 +227,36 @@ def test_poe_class_labels():
         assert (
             DISPLAYED_POE_CLASSES[getattr(PoeClass, f"CLASS_{num}")] == f"Class {num}"
         )
+
+
+async def test_mac_mismatch_blocks_refresh_and_control(hass, switch_server):
+    coordinator, entry = coordinator_for(hass, switch_server)
+    await coordinator.async_config_entry_first_refresh()
+    saved_mac = coordinator.get_switch_info().mac
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, integration.CONF_SWITCH_MAC: saved_mac}
+    )
+    api, state, _ = switch_server
+    other = await api.get_device_info()
+    other.mac = "11:22:33:44:55:66"
+    with patch.object(api, "get_device_info", AsyncMock(return_value=other)):
+        with pytest.raises(UpdateFailed, match="Switch MAC mismatch"):
+            await coordinator.async_update()
+        with pytest.raises(UpdateFailed, match="Switch MAC mismatch"):
+            await coordinator.async_clear_port_statistics()
+    assert state["clears"] == 0
+    assert coordinator.get_switch_info().mac == saved_mac
+    assert entry.data[integration.CONF_SWITCH_MAC] == saved_mac
+    await coordinator.async_unload()
+
+
+async def test_ignored_port_command_preserves_readback(hass, switch_server):
+    coordinator, _ = coordinator_for(hass, switch_server)
+    await coordinator.async_config_entry_first_refresh()
+    api, _, _ = switch_server
+    with patch.object(api, "set_port_state", AsyncMock()) as write:
+        with pytest.raises(HomeAssistantError, match="did not apply"):
+            await coordinator.set_port_state(1, False, PortSpeed.AUTO, False)
+    write.assert_awaited_once()
+    assert coordinator.get_port_state(1).enabled
+    await coordinator.async_unload()

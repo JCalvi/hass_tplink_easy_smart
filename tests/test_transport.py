@@ -131,3 +131,13 @@ async def test_get_variable_forwards_request_options(switch_server):
         == 1
     )
     api._core_api.get.assert_awaited_once_with("test", check_authorized="checker")
+
+
+async def test_unauthorized_diagnostic_contains_path_without_query(switch_server):
+    api, state, _ = switch_server
+    state["status"]["blocked"] = 403
+    with pytest.raises(ApiCallError) as failure:
+        await api._core_api.get("blocked", query="password=redacted-value")
+    message = str(failure.value)
+    assert "GET blocked (HTTP 403, login page: no)" in message
+    assert "redacted-value" not in message

@@ -283,3 +283,35 @@ async def test_reconfigure_rejects_duplicate_name(hass):
     assert result["errors"] == {"base": "name_exists"}
     assert entry.data["name"] == "Test"
     api.assert_not_called()
+
+
+async def test_dhcp_address_is_only_suggested_until_confirmation(hass):
+    from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
+
+    mac = "aa:bb:cc:dd:ee:ff"
+    entry = make_entry(data={**make_entry().data, CONF_SWITCH_MAC: mac})
+    hass.config_entries._entries[entry.entry_id] = entry
+
+    discovery = TpLinkControllerConfigFlow()
+    discovery.hass = hass
+    discovery.context = {"source": "dhcp"}
+    discovery.handler = DOMAIN
+    flow = TpLinkControllerConfigFlow()
+    flow.hass = hass
+    flow.context = {"source": "reconfigure", "entry_id": entry.entry_id}
+    flow.handler = DOMAIN
+    with patch("custom_components.tplink_easy_smart.config_flow.TpLinkApi") as api:
+        for address, detected_mac, expected in [
+            ("192.168.1.41", "001122334455", "127.0.0.1"),
+            ("192.168.1.42", "AABBCCDDEEFF", "192.168.1.42"),
+            ("127.0.0.1", "AABBCCDDEEFF", "127.0.0.1"),
+        ]:
+            result = await discovery.async_step_dhcp(
+                DhcpServiceInfo(ip=address, hostname="switch", macaddress=detected_mac)
+            )
+            assert result["type"] == FlowResultType.ABORT
+            result = await flow.async_step_reconfigure()
+            assert result["data_schema"]({})["host"] == expected
+            assert result["description_placeholders"] == {"current_host": "127.0.0.1"}
+        assert entry.data["host"] == "127.0.0.1"
+        api.assert_not_called()

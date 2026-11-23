@@ -46,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         await coordinator.async_config_entry_first_refresh()
         info = coordinator.get_switch_info()
         mac = info.mac.casefold() if info and isinstance(info.mac, str) else None
-        if mac and config_entry.data.get(CONF_SWITCH_MAC) != mac:
+        if mac and not config_entry.data.get(CONF_SWITCH_MAC):
             hass.config_entries.async_update_entry(
                 config_entry, data={**config_entry.data, CONF_SWITCH_MAC: mac}
             )

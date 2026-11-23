@@ -292,7 +292,9 @@ class TpLinkWebApi:
             )
             result = await _get_response_text(response)
             if response.status != 200:
-                raise AuthenticationError("Login request failed", AUTH_FAILURE_GENERAL)
+                raise AuthenticationError(
+                    f"POST logon.cgi returned HTTP {response.status}", AUTH_FAILURE_GENERAL
+                )
             items = _get_variable(result, _VAR_LOGON_INFO, VariableType.List)
             if not items:
                 raise AuthenticationError("Missing login result", AUTH_FAILURE_GENERAL)
@@ -308,7 +310,8 @@ class TpLinkWebApi:
                     "Login rejected", reasons.get(items[0], AUTH_FAILURE_GENERAL)
                 )
             self._is_initialized = True
-        except AuthenticationError:
+        except AuthenticationError as ex:
+            _LOGGER.debug("Switch login failed: %s", ex)
             raise
         except (
             ApiCallError,
@@ -342,9 +345,8 @@ class TpLinkWebApi:
                     ) from ex
                 if checker(response, result):
                     return result
-                needs_login = response.status in (401, 403) or (
-                    response.status == 200 and _is_login_page(result)
-                )
+                login_page = response.status == 200 and _is_login_page(result)
+                needs_login = response.status in (401, 403) or login_page
                 if not needs_login:
                     raise ApiCallError(
                         f"Invalid response from {path}: HTTP {response.status}",
@@ -356,7 +358,9 @@ class TpLinkWebApi:
                     await self.authenticate()
             self._is_initialized = False
             raise ApiCallError(
-                "Switch session remains unauthorized",
+                f"Switch session remains unauthorized for {method} "
+                f"{path.partition('?')[0]} (HTTP {response.status}, "
+                f"login page: {'yes' if login_page else 'no'})",
                 APICALL_ERRCODE_UNAUTHORIZED,
                 APICALL_ERRCAT_UNAUTHORIZED,
             )

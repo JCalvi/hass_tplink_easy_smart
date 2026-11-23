@@ -16,7 +16,7 @@
       },
       "reconfigure": {
         "title": "Reconfigure switch",
-        "description": "Update the settings for this switch.",
+        "description": "Current address: {current_host}. Review the host field before submitting. It may contain a newly discovered DHCP address.",
         "data": {
           "name": "Integration name",
           "host": "Host",

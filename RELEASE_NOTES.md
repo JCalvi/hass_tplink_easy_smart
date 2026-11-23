@@ -1,3 +1,14 @@
+## 0.5.1
+
+- Verify switch identity during setup, polling, and before control commands.
+- Confirm port enable/disable changes by reading back the actual state.
+- Include the request path and HTTP status in unauthorized-session diagnostics.
+- Suggest discovered DHCP addresses in Reconfigure and apply only after confirmation and identity verification.
+
+Requires Home Assistant 2026.10.4 or newer.
+
+**Full Changelog**: https://github.com/JCalvi/hass_tplink_easy_smart/compare/v0.5.0...v0.5.1
+
 ## 0.5.0
 
 - Make every add-device field editable from **Reconfigure**: integration name, host, port, username, password, SSL, and certificate verification.
